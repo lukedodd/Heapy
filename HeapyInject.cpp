@@ -48,18 +48,18 @@ void  __cdecl freeHook(void * p){
 	depthCount--;
 }
 
-BOOL enumSymbols(PCSTR symbolName, DWORD64 symbolAddress, ULONG symbolSize, PVOID userContext){
+BOOL enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVOID userContext){
 	depthCount++; // disable any malloc/free profiling during the hook process.
 	PCSTR moduleName = (PCSTR)userContext;
 	
 	// Hook mallocs.
-	if(strcmp(symbolName, "malloc") == 0){
-		printf("Hooking malloc from module %s !\n", moduleName);
-		if(MH_CreateHook((void*)symbolAddress, mallocHooks[nUsedMallocHooks],  (void **)&originalMallocs[nUsedMallocHooks]) != MH_OK){
+	if(strcmp(symbolInfo->Name, "malloc") == 0){
+		printf("Hooking malloc from module %s into malloc hook num %d.\n", moduleName, nUsedMallocHooks);
+		if(MH_CreateHook((void*)symbolInfo->Address, mallocHooks[nUsedMallocHooks],  (void **)&originalMallocs[nUsedMallocHooks]) != MH_OK){
 			printf("Create hook malloc failed!\n");
 		}
 
-		if(MH_EnableHook((void*)symbolAddress) != MH_OK){
+		if(MH_EnableHook((void*)symbolInfo->Address) != MH_OK){
 			printf("Enable malloc hook failed!\n");
 		}
 
@@ -67,13 +67,13 @@ BOOL enumSymbols(PCSTR symbolName, DWORD64 symbolAddress, ULONG symbolSize, PVOI
 	}
 
 	// Hook frees.
-	if(strcmp(symbolName, "free") == 0){
-		printf("Hooking free from module %s !\n", moduleName);
-		if(MH_CreateHook((void*)symbolAddress, freeHooks[nUsedFreeHooks],  (void **)&originalFrees[nUsedFreeHooks]) != MH_OK){
+	if(strcmp(symbolInfo->Name, "free") == 0){
+		printf("Hooking free from module %s into free hook num %d.\n", moduleName, nUsedFreeHooks);
+		if(MH_CreateHook((void*)symbolInfo->Address, freeHooks[nUsedFreeHooks],  (void **)&originalFrees[nUsedFreeHooks]) != MH_OK){
 			printf("Create hook free failed!\n");
 		}
 
-		if(MH_EnableHook((void*)symbolAddress) != MH_OK){
+		if(MH_EnableHook((void*)symbolInfo->Address) != MH_OK){
 			printf("Enable free failed!\n");
 		}
 
@@ -86,10 +86,10 @@ BOOL enumSymbols(PCSTR symbolName, DWORD64 symbolAddress, ULONG symbolSize, PVOI
 
 
 
-BOOL enumModules(PCSTR ModuleName, DWORD64 BaseOfDll, PVOID UserContext){
-	printf("EnumModuleCallback %s \n", ModuleName);
-	// if(strcmp(ModuleName, "msvcrt") != 0)
-		SymEnumerateSymbols(GetCurrentProcess(), BaseOfDll, enumSymbols, (void*)ModuleName);
+BOOL enumModulesCallback(PCSTR ModuleName, DWORD64 BaseOfDll, PVOID UserContext){
+	// printf("EnumModuleCallback %s \n", ModuleName);
+	SymEnumSymbols(GetCurrentProcess(), BaseOfDll, "malloc", enumSymbolsCallback, (void*)ModuleName);
+	SymEnumSymbols(GetCurrentProcess(), BaseOfDll, "free", enumSymbolsCallback, (void*)ModuleName);
 	return true;
 }
 
@@ -97,7 +97,7 @@ BOOL enumModules(PCSTR ModuleName, DWORD64 BaseOfDll, PVOID UserContext){
 template<int N> struct InitNHooks{
     static void initHook(){
         InitNHooks<N-1>::initHook();  // Compile time recursion. 
-        printf("Initing hook %d \n", N);
+        // printf("Initing hook %d \n", N);
 
 		mallocHooks[N] = &mallocHook<N>;
 		freeHooks[N] = &freeHook<N>;
@@ -128,7 +128,7 @@ __declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO
 		printf("SymInitialize failed\n");
 
 	// Trawl though loaded modules and hook any mallocs and frees we find.
-	SymEnumerateModules(GetCurrentProcess(), enumModules, NULL);
+	SymEnumerateModules(GetCurrentProcess(), enumModulesCallback, NULL);
 
 	printf("Starting hooked application...\n");
 	RhWakeUpProcess();
