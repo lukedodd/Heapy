@@ -50,7 +50,7 @@ void * __cdecl mallocHook(size_t size){
 
 	void * p = originalMallocs[N](size);
 	if(preventSelfProfile.shouldProfile()){
-		printf("Hooked malloc \n");
+		printf("Hooked malloc %d\n", N);
 	}
 
 	return p;
@@ -71,14 +71,13 @@ void  __cdecl freeHook(void * p){
 template<int N> struct InitNHooks{
     static void initHook(){
         InitNHooks<N-1>::initHook();  // Compile time recursion. 
-        // printf("Initing hook %d \n", N);
 
 		mallocHooks[N-1] = &mallocHook<N>;
 		freeHooks[N-1] = &freeHook<N>;
     }
 };
  
-template<> struct InitNHooks<1>{
+template<> struct InitNHooks<-1>{
     static void initHook(){
 		// stop the recursion
     }
@@ -125,7 +124,10 @@ BOOL enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVOID userCo
 
 // Callback which recieves loaded module names which we search for malloc/frees to hook.
 BOOL enumModulesCallback(PCSTR ModuleName, DWORD64 BaseOfDll, PVOID UserContext){
-	// printf("EnumModuleCallback %s \n", ModuleName);
+	// TODO: Hooking msvcrt causes problems with cleaning up stdio - avoid for now.
+	if(strcmp(ModuleName, "msvcrt") == 0) 
+		return true;
+
 	SymEnumSymbols(GetCurrentProcess(), BaseOfDll, "malloc", enumSymbolsCallback, (void*)ModuleName);
 	SymEnumSymbols(GetCurrentProcess(), BaseOfDll, "free", enumSymbolsCallback, (void*)ModuleName);
 	return true;
@@ -155,6 +157,8 @@ __declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO
 	RhWakeUpProcess();
 	for(;;)
 		Sleep(3000);
+
+	printf("Done sleeping\n");
 
 	// Need to somehow uninstall hooks during the shutdown of this thread.
 	// Although keeping it alive does not seem to cause many problems?
