@@ -1,0 +1,22 @@
+EasyHook
+========
+
+From http://easyhook.codeplex.com/
+
+2.7 beta binaries: EasyHook-2.7.4761.0-Binaries.zip\NetFX3.5\
+
+MinHook
+=======
+
+This guys MinHook fork:
+
+https://github.com/RaMMicHaeL/minhook commit 4141fefb4445d41e8506d8f72801a27e1b8874c6
+
+MinHook is originally from codeproject.com: http://www.codeproject.com/Articles/44326/MinHook-The-Minimalistic-x86-x64-API-Hooking-Libra
+
+dbghelp
+=======
+
+Windows SDK 8.1
+
+
