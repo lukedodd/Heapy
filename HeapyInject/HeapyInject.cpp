@@ -1,5 +1,9 @@
 #include <stdio.h>
 #include <mutex>
+#include <vector>
+#include <memory>
+
+#include "HeapProfiler.h"
 
 #include "easyhook.h"
 #include "MinHook.h"
@@ -23,6 +27,8 @@ PtrFree freeHooks[numHooks];
 PtrMalloc originalMallocs[numHooks];
 PtrFree originalFrees[numHooks];
 // TODO?: Special case of debug build malloc/frees?
+
+std::vector<StackTrace> *stackTraces;
 
 // Mechanism to stop us profiling ourself.
 static __declspec( thread ) int _depthCount = 0; // use thread local count
@@ -54,7 +60,9 @@ void * __cdecl mallocHook(size_t size){
 
 	void * p = originalMallocs[N](size);
 	if(preventSelfProfile.shouldProfile()){
-		printf("Hooked malloc %d\n", N);
+		StackTrace t;
+		t.trace();
+		stackTraces->push_back(t);
 	}
 
 	return p;
@@ -67,7 +75,9 @@ void  __cdecl freeHook(void * p){
 
 	originalFrees[N](p);
 	if(preventSelfProfile.shouldProfile()){
-		printf("Hooked free %d\n", N);
+		StackTrace t;
+		t.trace();
+		stackTraces->push_back(t);
 	}
 }
 
@@ -181,6 +191,8 @@ __declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO
 	if(!SymInitialize(GetCurrentProcess(), NULL, true))
 		printf("SymInitialize failed\n");
 
+	stackTraces = new std::vector<StackTrace>();
+
 	// Trawl though loaded modules and hook any mallocs and frees we find.
 	SymEnumerateModules(GetCurrentProcess(), enumModulesCallback, NULL);
 
@@ -194,6 +206,7 @@ __declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO
 	if(MH_EnableHook(ExitProcess) != MH_OK)
 		printf("Unable to hook ExitProcess\n");
 
+
 	printf("Starting hooked application...\n");
 	RhWakeUpProcess();
 
@@ -202,11 +215,14 @@ __declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO
 	// That's why we hooked ExitProcess above to not do anything until we set injectedThreadFinished to true. 
 
 	// Wait until app exits.
-	while(!exitRequested)
-		Sleep(100);
+	while(!exitRequested){
+		Sleep(1000);
+	}
 
-	// Pretend to do some cleanup work. 
-	Sleep(10000); 
+	for(const StackTrace &t : *stackTraces){
+		t.print();
+	}
+	getchar();
 
 	// Finally let the target program actually exit!
 	injectedThreadFinished = true; 

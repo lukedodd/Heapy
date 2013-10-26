@@ -11,7 +11,7 @@ extern "C" int main(int argc, wchar_t* argv[])
 {
 	NTSTATUS                NtStatus;
 	ULONG pid = 0;
-	FORCE(RhCreateAndInject(L"X:/TestStatic/TestStatic/x64/Release/TestStatic.exe", L"", 0, EASYHOOK_INJECT_DEFAULT, L"", L"Z:/Heapy/RelWithDebInfo/HeapyInjectDll.dll", 0, NULL, &pid));
+	FORCE(RhCreateAndInject(L"X:/TestStatic/TestStatic/x64/Release/TestStatic.exe", L"", 0, EASYHOOK_INJECT_DEFAULT, L"", L"Z:/Heapy/Debug/HeapyInjectDll.dll", 0, NULL, &pid));
 
 	Sleep(1000);
 	return 0;
