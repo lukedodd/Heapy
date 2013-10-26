@@ -8,10 +8,14 @@
 typedef void * (__cdecl *PtrMalloc)(size_t);
 typedef void (__cdecl *PtrFree)(void *);
 
+// Flag to indicate our injected thread has finished it's work.
+volatile bool injectedThreadFinished = false;
+volatile bool exitRequested = false;
+
 static const int numHooks = 128;
 
 // Hook tables. (Lot's of static data, but it's the only way to do this.)
-std::mutex hookTableMutex;
+// std::mutex hookTableMutex;
 int nUsedMallocHooks = 0; 
 int nUsedFreeHooks = 0; 
 PtrMalloc mallocHooks[numHooks];
@@ -72,12 +76,12 @@ template<int N> struct InitNHooks{
     static void initHook(){
         InitNHooks<N-1>::initHook();  // Compile time recursion. 
 
-		mallocHooks[N-1] = &mallocHook<N>;
-		freeHooks[N-1] = &freeHook<N>;
+		mallocHooks[N-1] = &mallocHook<N-1>;
+		freeHooks[N-1] = &freeHook<N-1>;
     }
 };
  
-template<> struct InitNHooks<-1>{
+template<> struct InitNHooks<0>{
     static void initHook(){
 		// stop the recursion
     }
@@ -85,7 +89,7 @@ template<> struct InitNHooks<-1>{
 
 // Callback which recieves addresses for mallocs/frees which we hook.
 BOOL enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVOID userContext){
-	std::lock_guard<std::mutex> lk(hookTableMutex);
+	// std::lock_guard<std::mutex> lk(hookTableMutex);
 	PreventSelfProfile preventSelfProfile;
 
 	PCSTR moduleName = (PCSTR)userContext;
@@ -133,15 +137,42 @@ BOOL enumModulesCallback(PCSTR ModuleName, DWORD64 BaseOfDll, PVOID UserContext)
 	return true;
 }
 
+// Hooks for process exit/termination.
+// Used so our injected thread can be informed of the exit and have us wait until it's finished.
+BOOL (WINAPI *terminateProcessOriginal)(HANDLE, UINT) = NULL;
+BOOL WINAPI terminateProcessHook(HANDLE hProcess, UINT uExitCode){
+	printf("Hooked terminate process!\n");
+
+	exitRequested = true;
+	while(!injectedThreadFinished)
+		Sleep(50);
+
+	return terminateProcessOriginal(hProcess, uExitCode);
+}
+
+VOID (WINAPI *exitProcessOriginal)(UINT) = NULL;
+VOID WINAPI exitProcessHook(_In_ UINT uExitCode){
+	printf("Hooked exit process!\n");
+
+	exitRequested = true;
+	while(!injectedThreadFinished)
+		Sleep(50);
+
+	return exitProcessOriginal(uExitCode);
+}
+
 extern "C"{
 
+// Our injected thread is made to call this function by EasyHook.
 __declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO* InRemoteInfo){
 	printf("Injecting library...\n");
+	nUsedMallocHooks = 0;
+	nUsedFreeHooks = 0;
 
 	PreventEverProfilingThisThread();
 
 	// Create our hook pointer tables using template meta programming fu.
-	InitNHooks<numHooks-1>::initHook(); 
+	InitNHooks<numHooks>::initHook(); 
 
 	// Init min hook framework.
 	MH_Initialize(); 
@@ -153,16 +184,32 @@ __declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO
 	// Trawl though loaded modules and hook any mallocs and frees we find.
 	SymEnumerateModules(GetCurrentProcess(), enumModulesCallback, NULL);
 
+	if(MH_CreateHook((void*)TerminateProcess, (void*)terminateProcessHook, (void**)&terminateProcessOriginal) != MH_OK)
+		printf("Unable to hook TerminateProcess\n");
+	if(MH_EnableHook(TerminateProcess) != MH_OK)
+		printf("Unable to hook TerminateProcess\n");
+
+	if(MH_CreateHook((void*)ExitProcess, (void*)exitProcessHook, (void**)&exitProcessOriginal) != MH_OK)
+		printf("Unable to hook ExitProcess\n");
+	if(MH_EnableHook(ExitProcess) != MH_OK)
+		printf("Unable to hook ExitProcess\n");
+
 	printf("Starting hooked application...\n");
 	RhWakeUpProcess();
-	for(;;)
-		Sleep(3000);
 
-	printf("Done sleeping\n");
+	// We can do what we want in this thread now but the target application knows nothing about it.
+	// Therfore we need to be sneeky to avoid this thread just being terminated when the application exits.
+	// That's why we hooked ExitProcess above to not do anything until we set injectedThreadFinished to true. 
 
-	// Need to somehow uninstall hooks during the shutdown of this thread.
-	// Although keeping it alive does not seem to cause many problems?
-	// I don't know....
+	// Wait until app exits.
+	while(!exitRequested)
+		Sleep(100);
+
+	// Pretend to do some cleanup work. 
+	Sleep(10000); 
+
+	// Finally let the target program actually exit!
+	injectedThreadFinished = true; 
 }
 
 }
