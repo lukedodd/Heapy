@@ -1,59 +1,99 @@
 #include <stdio.h>
+#include <mutex>
+
 #include "easyhook.h"
 #include "MinHook.h"
-#include <thread>
 #include "dbghelp.h"
 
-
-typedef void * (__cdecl *PtrToMalloc)(size_t);
-typedef void (__cdecl *PtrToFree)(void *);
-
+typedef void * (__cdecl *PtrMalloc)(size_t);
+typedef void (__cdecl *PtrFree)(void *);
 
 static const int numHooks = 128;
 
-// Lot's of static data, but it's the only way to do this.
-// TODO: proper locking of the data below.
-volatile int nUsedMallocHooks = 0; 
-volatile int nUsedFreeHooks = 0; 
-PtrToMalloc mallocHooks[numHooks];
-PtrToFree freeHooks[numHooks];
-PtrToMalloc originalMallocs[numHooks];
-PtrToFree originalFrees[numHooks];
-// TODO: Special case of debug build malloc/frees?
+// Hook tables. (Lot's of static data, but it's the only way to do this.)
+std::mutex hookTableMutex;
+int nUsedMallocHooks = 0; 
+int nUsedFreeHooks = 0; 
+PtrMalloc mallocHooks[numHooks];
+PtrFree freeHooks[numHooks];
+PtrMalloc originalMallocs[numHooks];
+PtrFree originalFrees[numHooks];
+// TODO?: Special case of debug build malloc/frees?
 
+// Mechanism to stop us profiling ourself.
+static __declspec( thread ) int _depthCount = 0; // use thread local count
 
-static __declspec( thread ) int depthCount = 0;
+struct PreventSelfProfile{
+	PreventSelfProfile(){
+		_depthCount++;
+	}
+	~PreventSelfProfile(){
+		_depthCount--;
+	}
+
+	inline bool shouldProfile(){
+		return _depthCount <= 1;
+	}
+private:
+	PreventSelfProfile(const PreventSelfProfile&){}
+	PreventSelfProfile& operator=(const PreventSelfProfile&){}
+};
+
+void PreventEverProfilingThisThread(){
+	_depthCount++;
+}
+
+// Malloc hook function. Templated so we can hook many mallocs.
 template <int N>
 void * __cdecl mallocHook(size_t size){
-	depthCount++;
+	PreventSelfProfile preventSelfProfile;
 
 	void * p = originalMallocs[N](size);
-	if(depthCount < 2){
+	if(preventSelfProfile.shouldProfile()){
 		printf("Hooked malloc \n");
 	}
 
-	depthCount--;
 	return p;
 }
 
+// Free hook function.
 template <int N>
 void  __cdecl freeHook(void * p){
+	PreventSelfProfile preventSelfProfile;
 
 	originalFrees[N](p);
-	depthCount++;
-	if(depthCount < 2){
+	if(preventSelfProfile.shouldProfile()){
 		printf("Hooked free %d\n", N);
 	}
-
-	depthCount--;
 }
 
+// Template recursion to init a hook table.
+template<int N> struct InitNHooks{
+    static void initHook(){
+        InitNHooks<N-1>::initHook();  // Compile time recursion. 
+        // printf("Initing hook %d \n", N);
+
+		mallocHooks[N-1] = &mallocHook<N>;
+		freeHooks[N-1] = &freeHook<N>;
+    }
+};
+ 
+template<> struct InitNHooks<1>{
+    static void initHook(){
+		// stop the recursion
+    }
+};
+
+// Callback which recieves addresses for mallocs/frees which we hook.
 BOOL enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVOID userContext){
-	depthCount++; // disable any malloc/free profiling during the hook process.
+	std::lock_guard<std::mutex> lk(hookTableMutex);
+	PreventSelfProfile preventSelfProfile;
+
 	PCSTR moduleName = (PCSTR)userContext;
 	
 	// Hook mallocs.
 	if(strcmp(symbolInfo->Name, "malloc") == 0){
+		int hookN = nUsedMallocHooks;
 		printf("Hooking malloc from module %s into malloc hook num %d.\n", moduleName, nUsedMallocHooks);
 		if(MH_CreateHook((void*)symbolInfo->Address, mallocHooks[nUsedMallocHooks],  (void **)&originalMallocs[nUsedMallocHooks]) != MH_OK){
 			printf("Create hook malloc failed!\n");
@@ -80,12 +120,10 @@ BOOL enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVOID userCo
 		nUsedFreeHooks++;
 	}
 
-	depthCount--;
 	return true;
 }
 
-
-
+// Callback which recieves loaded module names which we search for malloc/frees to hook.
 BOOL enumModulesCallback(PCSTR ModuleName, DWORD64 BaseOfDll, PVOID UserContext){
 	// printf("EnumModuleCallback %s \n", ModuleName);
 	SymEnumSymbols(GetCurrentProcess(), BaseOfDll, "malloc", enumSymbolsCallback, (void*)ModuleName);
@@ -93,29 +131,12 @@ BOOL enumModulesCallback(PCSTR ModuleName, DWORD64 BaseOfDll, PVOID UserContext)
 	return true;
 }
 
-
-template<int N> struct InitNHooks{
-    static void initHook(){
-        InitNHooks<N-1>::initHook();  // Compile time recursion. 
-        // printf("Initing hook %d \n", N);
-
-		mallocHooks[N] = &mallocHook<N>;
-		freeHooks[N] = &freeHook<N>;
-    }
-
-};
- 
-template<> struct InitNHooks<-1>{
-    static void initHook(){
-		// stop the recursion
-    }
-};
-
 extern "C"{
+
 __declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO* InRemoteInfo){
 	printf("Injecting library...\n");
 
-	depthCount = 2; // Disable all hooks in our dll thread forever.
+	PreventEverProfilingThisThread();
 
 	// Create our hook pointer tables using template meta programming fu.
 	InitNHooks<numHooks-1>::initHook(); 
@@ -139,4 +160,5 @@ __declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO
 	// Although keeping it alive does not seem to cause many problems?
 	// I don't know....
 }
+
 }
