@@ -13,10 +13,6 @@
 typedef void * (__cdecl *PtrMalloc)(size_t);
 typedef void (__cdecl *PtrFree)(void *);
 
-// Flag to indicate our injected thread has finished it's work.
-volatile bool injectedThreadFinished = false;
-volatile bool exitRequested = false;
-DWORD dllThreadId = -1;
 
 const int numHooks = 128;
 
@@ -31,8 +27,6 @@ PtrFree originalFrees[numHooks];
 // TODO?: Special case of debug build malloc/frees?
 
 HeapProfiler *heapProfiler;
-
-
 // Mechanism to stop us profiling ourself.
 static __declspec( thread ) int _depthCount = 0; // use thread local count
 
@@ -149,91 +143,6 @@ BOOL enumModulesCallback(PCSTR ModuleName, DWORD64 BaseOfDll, PVOID UserContext)
 	return true;
 }
 
-
-BOOL TerminateOtherThreads(DWORD excludedThreadId)
-{ 
-	DWORD currentThreadId = GetCurrentThreadId();
-	DWORD dwOwnerPID = GetCurrentProcessId();
-	HANDLE hThreadSnap = INVALID_HANDLE_VALUE; 
-	THREADENTRY32 te32; 
-
-	// Take a snapshot of all running threads  
-	hThreadSnap = CreateToolhelp32Snapshot( TH32CS_SNAPTHREAD, dwOwnerPID ); 
-	if(hThreadSnap == INVALID_HANDLE_VALUE) 
-		return( FALSE ); 
-
-	// Fill in the size of the structure before using it. 
-	te32.dwSize = sizeof(THREADENTRY32 ); 
-
-	// Retrieve information about the first thread,
-	// and exit if unsuccessful
-	if(!Thread32First( hThreadSnap, &te32 )) 
-	{
-		printf( TEXT("Thread32First") );  // Show cause of failure
-		CloseHandle( hThreadSnap );     // Must clean up the snapshot object!
-		return( FALSE );
-	}
-
-	// Now walk the thread list of the system and terminate everything but the
-	// current thread and excludedThread.
-	do 
-	{ 
-		if( te32.th32OwnerProcessID == dwOwnerPID && te32.th32ThreadID != currentThreadId && te32.th32ThreadID != excludedThreadId)
-		{
-			if(!TerminateThread(OpenThread(THREAD_TERMINATE, false, te32.th32ThreadID), 0))
-				printf("Failed to terminate thread.\n");
-			else
-				printf("Terminated thread.\n");
-		}
-	} while( Thread32Next(hThreadSnap, &te32 ) );
-
-
-	//  Don't forget to clean up the snapshot object.
-	CloseHandle( hThreadSnap );
-	printf("Finished terminating threads..\n");
-	return( TRUE );
-}
-
-// Hooks for process exit/termination.
-// Used so our injected thread can be informed of the exit and have us wait until it's finished.
-BOOL (WINAPI *terminateProcessOriginal)(HANDLE, UINT) = NULL;
-BOOL WINAPI terminateProcessHook(HANDLE hProcess, UINT uExitCode){
-	printf("Hooked terminate process!\n");
-
-	TerminateOtherThreads(dllThreadId);
-
-	exitRequested = true;
-	while(!injectedThreadFinished)
-		Sleep(50);
-
-	return terminateProcessOriginal(hProcess, uExitCode);
-}
-
-VOID (WINAPI *exitProcessOriginal)(UINT) = NULL;
-VOID WINAPI exitProcessHook(_In_ UINT uExitCode){
-	printf("Hooked exit process!\n");
-
-	// We're going to want to hang around but we should terminate
-	// all other threads in the application apart from the current and injected dll thread.
-	// 
-	// Why?
-	//
-	// Lots of applications might not wait for threads to finish or terminate 
-	// them prior to exiting. They wont crash because these threads are terminated
-	// by ExitProcess before they have time to access any deconstructed data.
-	// 
-	// This is pretty messy but I'm not sure that we can do better.
-	// I expect in the real wold Heapy will mostly be used while applications are running
-	// and the leak detection on shutdown wont be useful on many apps.
-	TerminateOtherThreads(dllThreadId);
-
-	exitRequested = true;
-	while(!injectedThreadFinished)
-		Sleep(50);
-
-	return exitProcessOriginal(uExitCode);
-}
-
 void PrintTopAllocationReport(int numToPrint){
 	std::vector<std::pair<StackTrace, size_t>> allocsSortedBySize;
 	heapProfiler->getAllocationSiteReport(allocsSortedBySize);
@@ -244,23 +153,40 @@ void PrintTopAllocationReport(int numToPrint){
 		return a.second > b.second;
 	});
 	
-	// Print top 10 allocations sites.
+	// Print top allocations sites.
 	for(int i = 0; i < (std::min)(size_t(numToPrint), allocsSortedBySize.size()); ++i){
 		printf("Alloc size %d\n", allocsSortedBySize[i].second);
 		allocsSortedBySize[i].first.print();
 	}
 }
 
+// Do an allocation report on exit.
+struct CatchExit{
+	~CatchExit(){
+		PreventSelfProfile p;
+		PrintTopAllocationReport(10);
+	}
+};
+CatchExit catchExit;
+
 extern "C"{
 
 // Our injected thread is made to call this function by EasyHook.
 __declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO* InRemoteInfo){
 	printf("Injecting library...\n");
+
+	LPWCH lpEnvString=GetEnvironmentStringsW();
+	LPWSTR lpszVariable=(LPWSTR)lpEnvString;
+	while (*lpszVariable){
+		wprintf(L"%s\n",lpszVariable);
+		lpszVariable+=wcslen(lpszVariable)+1;
+	}
+	FreeEnvironmentStringsW(lpEnvString);
+
 	nUsedMallocHooks = 0;
 	nUsedFreeHooks = 0;
 
 	PreventEverProfilingThisThread();
-	dllThreadId = GetCurrentThreadId();
 
 	// Create our hook pointer tables using template meta programming fu.
 	InitNHooks<numHooks>::initHook(); 
@@ -272,40 +198,21 @@ __declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO
 	if(!SymInitialize(GetCurrentProcess(), NULL, true))
 		printf("SymInitialize failed\n");
 
-	heapProfiler = new HeapProfiler();
+	// Yes this leaks - cleauing it up at application exit has zero real benefit.
+	// Might be able to clean it up on CatchExit but I don't see the point.
+	heapProfiler = new HeapProfiler(); 
 
 	// Trawl though loaded modules and hook any mallocs and frees we find.
 	SymEnumerateModules(GetCurrentProcess(), enumModulesCallback, NULL);
 
-	if(MH_CreateHook((void*)TerminateProcess, (void*)terminateProcessHook, (void**)&terminateProcessOriginal) != MH_OK)
-		printf("Unable to hook TerminateProcess\n");
-	if(MH_EnableHook(TerminateProcess) != MH_OK)
-		printf("Unable to hook TerminateProcess\n");
-
-	if(MH_CreateHook((void*)ExitProcess, (void*)exitProcessHook, (void**)&exitProcessOriginal) != MH_OK)
-		printf("Unable to hook ExitProcess\n");
-	if(MH_EnableHook(ExitProcess) != MH_OK)
-		printf("Unable to hook ExitProcess\n");
-
 	printf("Starting hooked application...\n");
 	RhWakeUpProcess();
 
-	// We can do what we want in this thread now but the target application knows nothing about it.
-	// Therfore we need to be sneeky to avoid this thread just being terminated when the application exits.
-	// That's why we hooked ExitProcess above to not do anything until we set injectedThreadFinished to true. 
-
 	// Print an allocation report every 10 seconds while the application is running.
-	while(!exitRequested){
+	while(true){
 		PrintTopAllocationReport(10);
 		Sleep(10000); 
 	}
-
-	// Print a final report after the application exits.
-	PrintTopAllocationReport(10);
-	getchar();
-
-	// Finally let the target program actually exit!
-	injectedThreadFinished = true; 
 }
 
 }
