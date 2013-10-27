@@ -24,7 +24,7 @@ public:
 	void malloc(void *ptr, size_t size, const StackTrace &trace){
 		std::lock_guard<std::mutex> lk(mutex);
 
-		if(allocations.find(trace.hash) != allocations.end()){
+		if(allocations.find(trace.hash) == allocations.end()){
 			allocations[trace.hash].trace = trace;
 		}
 
@@ -35,6 +35,7 @@ public:
 	void free(void *ptr, const StackTrace &trace){
 		// Do nothing for now...
 	}
+
 	void getAllocsSortedBySize(std::vector<std::pair<StackTrace, size_t>> &allocs){
 		std::lock_guard<std::mutex> lk(mutex);
 		allocs.clear();
