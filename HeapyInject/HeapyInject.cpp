@@ -17,7 +17,7 @@ typedef void (__cdecl *PtrFree)(void *);
 const int numHooks = 128;
 
 // Hook tables. (Lot's of static data, but it's the only way to do this.)
-// std::mutex hookTableMutex;
+std::mutex hookTableMutex;
 int nUsedMallocHooks = 0; 
 int nUsedFreeHooks = 0; 
 PtrMalloc mallocHooks[numHooks];
@@ -95,7 +95,7 @@ template<> struct InitNHooks<0>{
 
 // Callback which recieves addresses for mallocs/frees which we hook.
 BOOL enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVOID userContext){
-	// std::lock_guard<std::mutex> lk(hookTableMutex);
+	std::lock_guard<std::mutex> lk(hookTableMutex);
 	PreventSelfProfile preventSelfProfile;
 
 	PCSTR moduleName = (PCSTR)userContext;
