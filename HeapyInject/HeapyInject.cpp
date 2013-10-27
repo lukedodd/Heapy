@@ -30,7 +30,8 @@ PtrMalloc originalMallocs[numHooks];
 PtrFree originalFrees[numHooks];
 // TODO?: Special case of debug build malloc/frees?
 
-std::vector<StackTrace> *stackTraces;
+HeapProfiler *heapProfiler;
+
 
 // Mechanism to stop us profiling ourself.
 static __declspec( thread ) int _depthCount = 0; // use thread local count
@@ -62,9 +63,9 @@ void * __cdecl mallocHook(size_t size){
 
 	void * p = originalMallocs[N](size);
 	if(preventSelfProfile.shouldProfile()){
-		StackTrace t;
-		t.trace();
-		stackTraces->push_back(t);
+		StackTrace trace;
+		trace.trace();
+		heapProfiler->malloc(p, size, trace);
 	}
 
 	return p;
@@ -79,7 +80,6 @@ void  __cdecl freeHook(void * p){
 	if(preventSelfProfile.shouldProfile()){
 		StackTrace t;
 		t.trace();
-		stackTraces->push_back(t);
 	}
 }
 
@@ -200,6 +200,8 @@ BOOL (WINAPI *terminateProcessOriginal)(HANDLE, UINT) = NULL;
 BOOL WINAPI terminateProcessHook(HANDLE hProcess, UINT uExitCode){
 	printf("Hooked terminate process!\n");
 
+	TerminateOtherThreads(dllThreadId);
+
 	exitRequested = true;
 	while(!injectedThreadFinished)
 		Sleep(50);
@@ -253,7 +255,7 @@ __declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO
 	if(!SymInitialize(GetCurrentProcess(), NULL, true))
 		printf("SymInitialize failed\n");
 
-	stackTraces = new std::vector<StackTrace>();
+	heapProfiler = new HeapProfiler();
 
 	// Trawl though loaded modules and hook any mallocs and frees we find.
 	SymEnumerateModules(GetCurrentProcess(), enumModulesCallback, NULL);
@@ -278,12 +280,15 @@ __declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO
 
 	// Wait until app exits.
 	while(!exitRequested){
-		Sleep(10);
+		Sleep(5000);
+		std::vector<std::pair<StackTrace, size_t>> allocsSortedBySize;
+		heapProfiler->getAllocsSortedBySize(allocsSortedBySize);
+		for(int i = 0; i < 10; ++i){
+			printf("Alloc size %d\n", allocsSortedBySize[i].second);
+			allocsSortedBySize[i].first.print();
+		}
 	}
 
-	for(const StackTrace &t : *stackTraces){
-		t.print();
-	}
 	// getchar();
 	// Finally let the target program actually exit!
 	injectedThreadFinished = true; 
