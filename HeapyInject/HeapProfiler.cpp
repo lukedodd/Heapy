@@ -1,4 +1,6 @@
 #include "HeapProfiler.h"
+#include <algorithm>
+
 #include <Windows.h>
 #include <stdio.h>
 #include "dbghelp.h"
@@ -29,5 +31,41 @@ void StackTrace::print() const {
 			break;
 		}
 	}
+}
 
+void HeapProfiler::malloc(void *ptr, size_t size, const StackTrace &trace){
+	std::lock_guard<std::mutex> lk(mutex);
+
+	if(allocations.find(trace.hash) == allocations.end()){
+		allocations[trace.hash].trace = trace;
+	}
+
+	allocations[trace.hash].allocations[ptr] = size;
+	ptrs[ptr] = trace.hash;
+}
+
+void HeapProfiler::free(void *ptr, const StackTrace &trace){
+	std::lock_guard<std::mutex> lk(mutex);
+	auto it = ptrs.find(ptr);
+	if(it != ptrs.end()){
+		StackHash stackHash = it->second;
+		allocations[stackHash].allocations.erase(ptr); 
+		ptrs.erase(it);
+	}else{
+		// Do anything with wild pointer frees?
+	}
+}
+
+void HeapProfiler::getAllocationSiteReport(std::vector<std::pair<StackTrace, size_t>> &allocs){
+	std::lock_guard<std::mutex> lk(mutex);
+	allocs.clear();
+
+	// For each allocation 
+	for(auto &traceInfo : allocations){
+		size_t sumOfAlloced = 0;
+		for(auto &alloc : traceInfo.second.allocations)
+			sumOfAlloced += alloc.second;
+
+		allocs.push_back(std::make_pair(traceInfo.second.trace, sumOfAlloced));
+	}
 }

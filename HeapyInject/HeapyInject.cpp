@@ -2,6 +2,7 @@
 #include <mutex>
 #include <vector>
 #include <memory>
+#include <algorithm>
 
 #include "HeapProfiler.h"
 
@@ -14,9 +15,8 @@ typedef void * (__cdecl *PtrMalloc)(size_t);
 typedef void (__cdecl *PtrFree)(void *);
 
 
-const int numHooks = 128;
-
 // Hook tables. (Lot's of static data, but it's the only way to do this.)
+const int numHooks = 128;
 std::mutex hookTableMutex;
 int nUsedMallocHooks = 0; 
 int nUsedFreeHooks = 0; 
@@ -24,9 +24,10 @@ PtrMalloc mallocHooks[numHooks];
 PtrFree freeHooks[numHooks];
 PtrMalloc originalMallocs[numHooks];
 PtrFree originalFrees[numHooks];
-// TODO?: Special case of debug build malloc/frees?
+// TODO?: Special case for debug build malloc/frees?
 
 HeapProfiler *heapProfiler;
+
 // Mechanism to stop us profiling ourself.
 static __declspec( thread ) int _depthCount = 0; // use thread local count
 
@@ -162,6 +163,18 @@ void PrintTopAllocationReport(int numToPrint){
 }
 
 // Do an allocation report on exit.
+// Static data deconstructors are supposed to be called in reverse order of the construction.
+// (According to the C++ spec.)
+// 
+// So this /should/ be called after the staic deconstructors of the injectee application.
+// Probably by whatever thread is calling exit. 
+// 
+// We are well out of the normal use cases here and I wouldn't be suprised if this mechanism
+// breaks down in practice. I'm not even that interested in leak detection on exit anyway.
+// 
+// Also: The end game will be send malloc/free information to a different
+// process instead of doing reports the same process - then shutdown issues go awaay.
+// But for now it's more fun to work inside the injected process.
 struct CatchExit{
 	~CatchExit(){
 		PreventSelfProfile p;
