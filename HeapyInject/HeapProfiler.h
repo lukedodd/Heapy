@@ -42,11 +42,13 @@ public:
 		}
 	}
 
-	void getAllocsSortedBySize(std::vector<std::pair<StackTrace, size_t>> &allocs){
+	// Return a list of allocation sites (a particular stack trace) and the amount
+	// of memory currently allocated by each site.
+	void getAllocationSiteReport(std::vector<std::pair<StackTrace, size_t>> &allocs){
 		std::lock_guard<std::mutex> lk(mutex);
 		allocs.clear();
 
-		// Accumulate the size of all allocation location.
+		// For each allocation 
 		for(auto &traceInfo : allocations){
 			size_t sumOfAlloced = 0;
 			for(auto &alloc : traceInfo.second.allocations)
@@ -54,12 +56,8 @@ public:
 
 			allocs.push_back(std::make_pair(traceInfo.second.trace, sumOfAlloced));
 		}
+
 		
-		// Sort retured allcos in size, descending.
-		std::sort(allocs.begin(), allocs.end(), [](const std::pair<StackTrace, size_t> &a,
-												   const std::pair<StackTrace, size_t> &b){
-			return a.second > b.second;
-		});
 	}
 private:
 	std::mutex mutex;

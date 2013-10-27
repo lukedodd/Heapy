@@ -234,6 +234,23 @@ VOID WINAPI exitProcessHook(_In_ UINT uExitCode){
 	return exitProcessOriginal(uExitCode);
 }
 
+void PrintTopAllocationReport(int numToPrint){
+	std::vector<std::pair<StackTrace, size_t>> allocsSortedBySize;
+	heapProfiler->getAllocationSiteReport(allocsSortedBySize);
+
+	// Sort retured allocation sites by size of memory allocated, descending.
+	std::sort(allocsSortedBySize.begin(), allocsSortedBySize.end(), [](const std::pair<StackTrace, size_t> &a,
+											   const std::pair<StackTrace, size_t> &b){
+		return a.second > b.second;
+	});
+	
+	// Print top 10 allocations sites.
+	for(int i = 0; i < (std::min)(size_t(numToPrint), allocsSortedBySize.size()); ++i){
+		printf("Alloc size %d\n", allocsSortedBySize[i].second);
+		allocsSortedBySize[i].first.print();
+	}
+}
+
 extern "C"{
 
 // Our injected thread is made to call this function by EasyHook.
@@ -270,7 +287,6 @@ __declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO
 	if(MH_EnableHook(ExitProcess) != MH_OK)
 		printf("Unable to hook ExitProcess\n");
 
-
 	printf("Starting hooked application...\n");
 	RhWakeUpProcess();
 
@@ -278,18 +294,16 @@ __declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO
 	// Therfore we need to be sneeky to avoid this thread just being terminated when the application exits.
 	// That's why we hooked ExitProcess above to not do anything until we set injectedThreadFinished to true. 
 
-	// Wait until app exits.
+	// Print an allocation report every 10 seconds while the application is running.
 	while(!exitRequested){
-		Sleep(5000);
-		std::vector<std::pair<StackTrace, size_t>> allocsSortedBySize;
-		heapProfiler->getAllocsSortedBySize(allocsSortedBySize);
-		for(int i = 0; i < 10; ++i){
-			printf("Alloc size %d\n", allocsSortedBySize[i].second);
-			allocsSortedBySize[i].first.print();
-		}
+		PrintTopAllocationReport(10);
+		Sleep(10000); 
 	}
 
-	// getchar();
+	// Print a final report after the application exits.
+	PrintTopAllocationReport(10);
+	getchar();
+
 	// Finally let the target program actually exit!
 	injectedThreadFinished = true; 
 }
