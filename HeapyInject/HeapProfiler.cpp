@@ -31,21 +31,3 @@ void StackTrace::print() const {
 	}
 
 }
-
-void PrintStack(){
-	void *backtrace[backtraceSize];
-	memset(backtrace, 0, backtraceSize*sizeof(void*));
-	DWORD btHash = 0;
-	HANDLE process = GetCurrentProcess();
-	CaptureStackBackTrace(0, backtraceSize, backtrace, &btHash);
-
-	IMAGEHLP_SYMBOL sym;
-	for(int i = 0; i < backtraceSize; ++i){
-		if(backtrace[i]){
-			if(SymGetSymFromAddr(process, (DWORD64)backtrace[i], 0, &sym))
-				printf("%08x, %s\n", backtrace[i], sym.Name);
-		}else{
-			break;
-		}
-	}
-}

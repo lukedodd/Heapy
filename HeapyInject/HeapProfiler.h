@@ -6,18 +6,16 @@
 #include <algorithm>
 
 const int backtraceSize = 256;
-typedef unsigned long StackIdentifier;
+typedef unsigned long StackHash;
 
 struct StackTrace{
 	void *backtrace[backtraceSize];
-	StackIdentifier hash;
+	StackHash hash;
 
 	StackTrace();
 	void trace(); 
 	void print() const;
 };
-
-void PrintStack();
 
 class HeapProfiler{
 public:
@@ -33,7 +31,15 @@ public:
 	}
 
 	void free(void *ptr, const StackTrace &trace){
-		// Do nothing for now...
+		std::lock_guard<std::mutex> lk(mutex);
+		auto it = ptrs.find(ptr);
+		if(it != ptrs.end()){
+			StackHash stackHash = it->second;
+			allocations[stackHash].allocations.erase(ptr); 
+			ptrs.erase(it);
+		}else{
+			// Do anything with wild pointer frees?
+		}
 	}
 
 	void getAllocsSortedBySize(std::vector<std::pair<StackTrace, size_t>> &allocs){
@@ -61,7 +67,7 @@ private:
 		StackTrace trace;
 		std::unordered_map<void *, size_t> allocations;
 	};
-	std::unordered_map<StackIdentifier, TraceInfo> allocations;
-	std::unordered_map<void*, StackIdentifier> ptrs;
+	std::unordered_map<StackHash, TraceInfo> allocations;
+	std::unordered_map<void*, StackHash> ptrs;
 
 };
