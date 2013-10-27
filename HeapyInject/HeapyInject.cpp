@@ -8,6 +8,7 @@
 #include "easyhook.h"
 #include "MinHook.h"
 #include "dbghelp.h"
+#include <tlhelp32.h>
 
 typedef void * (__cdecl *PtrMalloc)(size_t);
 typedef void (__cdecl *PtrFree)(void *);
@@ -15,8 +16,9 @@ typedef void (__cdecl *PtrFree)(void *);
 // Flag to indicate our injected thread has finished it's work.
 volatile bool injectedThreadFinished = false;
 volatile bool exitRequested = false;
+DWORD dllThreadId = -1;
 
-static const int numHooks = 128;
+const int numHooks = 128;
 
 // Hook tables. (Lot's of static data, but it's the only way to do this.)
 // std::mutex hookTableMutex;
@@ -147,6 +149,51 @@ BOOL enumModulesCallback(PCSTR ModuleName, DWORD64 BaseOfDll, PVOID UserContext)
 	return true;
 }
 
+
+BOOL TerminateOtherThreads(DWORD excludedThreadId)
+{ 
+	DWORD currentThreadId = GetCurrentThreadId();
+	DWORD dwOwnerPID = GetCurrentProcessId();
+	HANDLE hThreadSnap = INVALID_HANDLE_VALUE; 
+	THREADENTRY32 te32; 
+
+	// Take a snapshot of all running threads  
+	hThreadSnap = CreateToolhelp32Snapshot( TH32CS_SNAPTHREAD, dwOwnerPID ); 
+	if(hThreadSnap == INVALID_HANDLE_VALUE) 
+		return( FALSE ); 
+
+	// Fill in the size of the structure before using it. 
+	te32.dwSize = sizeof(THREADENTRY32 ); 
+
+	// Retrieve information about the first thread,
+	// and exit if unsuccessful
+	if(!Thread32First( hThreadSnap, &te32 )) 
+	{
+		printf( TEXT("Thread32First") );  // Show cause of failure
+		CloseHandle( hThreadSnap );     // Must clean up the snapshot object!
+		return( FALSE );
+	}
+
+	// Now walk the thread list of the system and terminate everything but the
+	// current thread and excludedThread.
+	do 
+	{ 
+		if( te32.th32OwnerProcessID == dwOwnerPID && te32.th32ThreadID != currentThreadId && te32.th32ThreadID != excludedThreadId)
+		{
+			if(!TerminateThread(OpenThread(THREAD_TERMINATE, false, te32.th32ThreadID), 0))
+				printf("Failed to terminate thread.\n");
+			else
+				printf("Terminated thread.\n");
+		}
+	} while( Thread32Next(hThreadSnap, &te32 ) );
+
+
+	//  Don't forget to clean up the snapshot object.
+	CloseHandle( hThreadSnap );
+	printf("Finished terminating threads..\n");
+	return( TRUE );
+}
+
 // Hooks for process exit/termination.
 // Used so our injected thread can be informed of the exit and have us wait until it's finished.
 BOOL (WINAPI *terminateProcessOriginal)(HANDLE, UINT) = NULL;
@@ -164,6 +211,20 @@ VOID (WINAPI *exitProcessOriginal)(UINT) = NULL;
 VOID WINAPI exitProcessHook(_In_ UINT uExitCode){
 	printf("Hooked exit process!\n");
 
+	// We're going to want to hang around but we should terminate
+	// all other threads in the application apart from the current and injected dll thread.
+	// 
+	// Why?
+	//
+	// Lots of applications might not wait for threads to finish or terminate 
+	// them prior to exiting. They wont crash because these threads are terminated
+	// by ExitProcess before they have time to access any deconstructed data.
+	// 
+	// This is pretty messy but I'm not sure that we can do better.
+	// I expect in the real wold Heapy will mostly be used while applications are running
+	// and the leak detection on shutdown wont be useful on many apps.
+	TerminateOtherThreads(dllThreadId);
+
 	exitRequested = true;
 	while(!injectedThreadFinished)
 		Sleep(50);
@@ -180,6 +241,7 @@ __declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO
 	nUsedFreeHooks = 0;
 
 	PreventEverProfilingThisThread();
+	dllThreadId = GetCurrentThreadId();
 
 	// Create our hook pointer tables using template meta programming fu.
 	InitNHooks<numHooks>::initHook(); 
@@ -216,14 +278,13 @@ __declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO
 
 	// Wait until app exits.
 	while(!exitRequested){
-		Sleep(1000);
+		Sleep(10);
 	}
 
 	for(const StackTrace &t : *stackTraces){
 		t.print();
 	}
-	getchar();
-
+	// getchar();
 	// Finally let the target program actually exit!
 	injectedThreadFinished = true; 
 }
