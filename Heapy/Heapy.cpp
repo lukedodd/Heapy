@@ -5,11 +5,9 @@
 #include <thread>
 #include <vector>
 
-#define FORCE(expr)     {if(!SUCCEEDED(NtStatus = (expr))) goto ERROR_ABORT;}
+#pragma warning(disable: 4996)
 
-
-std::wstring get_wstring(const std::string & s)
-{
+std::wstring getWstring(const std::string & s){
   const char * cs = s.c_str();
   const size_t wn = mbsrtowcs(NULL, &cs, 0, NULL);
 
@@ -33,19 +31,27 @@ std::wstring get_wstring(const std::string & s)
 
 extern "C" int main(int argc, char* argv[])
 {
-	NTSTATUS                NtStatus;
+	auto wstring = getWstring(argv[1]);
+	std::string exePath(argv[0]);
+	// Assume that the injection payload dll is in the same directory as the exe.
+	std::string dllPath = exePath.append(std::string("/../HeapyInjectDll.dll"));
+
 	ULONG pid = 0;
-	printf("%s",argv[1]);
-	auto wstring = get_wstring(argv[1]);
-	FORCE(RhCreateAndInject((wchar_t *)wstring.c_str(), L"", 0, EASYHOOK_INJECT_DEFAULT, L"", L"Z:/Heapy/RelWithDebInfo/HeapyInjectDll.dll", 0, NULL, &pid));
+	NTSTATUS status = RhCreateAndInject((wchar_t *)wstring.c_str(), 
+		                                L"", 
+										0, 
+										EASYHOOK_INJECT_DEFAULT,
+										L"", 
+										(wchar_t *)getWstring(dllPath.c_str()).c_str(),
+										0, 
+										NULL, 
+										&pid);
+
+	if(!SUCCEEDED(status)){
+		printf("\nError while creating and injecting process: (0x%p) \"%S\" (code: %d {0x%p})\n", (PVOID)status, RtlGetLastErrorString(), RtlGetLastError(), (PVOID)RtlGetLastError());
+		return status;
+	}
 
 	return 0;
-
-
-	ERROR_ABORT:
-
-	printf("\n[Error(0x%p)]: \"%S\" (code: %d {0x%p})\n", (PVOID)NtStatus, RtlGetLastErrorString(), RtlGetLastError(), (PVOID)RtlGetLastError());
-
-    return NtStatus;
 }
 

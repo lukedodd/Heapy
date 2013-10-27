@@ -175,14 +175,6 @@ extern "C"{
 __declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO* InRemoteInfo){
 	printf("Injecting library...\n");
 
-	LPWCH lpEnvString=GetEnvironmentStringsW();
-	LPWSTR lpszVariable=(LPWSTR)lpEnvString;
-	while (*lpszVariable){
-		wprintf(L"%s\n",lpszVariable);
-		lpszVariable+=wcslen(lpszVariable)+1;
-	}
-	FreeEnvironmentStringsW(lpEnvString);
-
 	nUsedMallocHooks = 0;
 	nUsedFreeHooks = 0;
 
