@@ -18,16 +18,16 @@ void StackTrace::trace(){
 void StackTrace::print(std::ostream &stream) const {
 	HANDLE process = GetCurrentProcess();
 
-	const int MAXSYMBOLNAME = 128 - sizeof(IMAGEHLP_SYMBOL64);
-	char symbol64_buf[sizeof(IMAGEHLP_SYMBOL64) + MAXSYMBOLNAME] = {0};
-	IMAGEHLP_SYMBOL64 *symbol64 = reinterpret_cast<IMAGEHLP_SYMBOL64*>(symbol64_buf);
-	symbol64->SizeOfStruct = sizeof(IMAGEHLP_SYMBOL64);
-	symbol64->MaxNameLength = MAXSYMBOLNAME - 1;
+	const int MAXSYMBOLNAME = 128 - sizeof(IMAGEHLP_SYMBOL);
+	char symbol64_buf[sizeof(IMAGEHLP_SYMBOL) + MAXSYMBOLNAME] = {0};
+	IMAGEHLP_SYMBOL *symbol = reinterpret_cast<IMAGEHLP_SYMBOL*>(symbol64_buf);
+	symbol->SizeOfStruct = sizeof(IMAGEHLP_SYMBOL);
+	symbol->MaxNameLength = MAXSYMBOLNAME - 1;
 
 	for(int i = 0; i < backtraceSize; ++i){
 		if(backtrace[i]){
-			if(SymGetSymFromAddr(process, (DWORD64)backtrace[i], 0, symbol64)){
-				stream << "     " << symbol64->Name << "    (" << 
+			if(SymGetSymFromAddr(process, (DWORD64)backtrace[i], 0, symbol)){
+				stream << "     " << symbol->Name << "    (" << 
 				std::setw(sizeof(void*)*2) << std::setfill('0') << backtrace[i] <<  ")\n";
 			}
 		}else{

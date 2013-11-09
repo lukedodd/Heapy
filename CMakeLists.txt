@@ -4,7 +4,13 @@ project(Heapy)
 add_subdirectory(libs)
 
 include_directories(${CMAKE_SOURCE_DIR}/libs/MinHook/include ${CMAKE_SOURCE_DIR}/libs/dbghelp/include)
-link_directories(${CMAKE_SOURCE_DIR}/libs/dbghelp/lib/x64)
+
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+	link_directories(${CMAKE_SOURCE_DIR}/libs/dbghelp/lib/x64)
+else(CMAKE_SIZEOF_VOID_P EQUAL 8)
+	link_directories(${CMAKE_SOURCE_DIR}/libs/dbghelp/lib/x86)
+endif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+
 
 add_library(HeapyInjectDll SHARED HeapyInject/HeapyInject.cpp HeapyInject/HeapProfiler.cpp)
 target_link_libraries(HeapyInjectDll MinHook dbghelp.lib)

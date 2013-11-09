@@ -99,7 +99,7 @@ template<> struct InitNHooks<0>{
 };
 
 // Callback which recieves addresses for mallocs/frees which we hook.
-BOOL enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVOID userContext){
+BOOL CALLBACK enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVOID userContext){
 	std::lock_guard<std::mutex> lk(hookTableMutex);
 	PreventSelfProfile preventSelfProfile;
 
@@ -138,7 +138,7 @@ BOOL enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVOID userCo
 }
 
 // Callback which recieves loaded module names which we search for malloc/frees to hook.
-BOOL enumModulesCallback(PCSTR ModuleName, DWORD64 BaseOfDll, PVOID UserContext){
+BOOL CALLBACK enumModulesCallback(PCSTR ModuleName, DWORD_PTR BaseOfDll, PVOID UserContext){
 	// TODO: Hooking msvcrt causes problems with cleaning up stdio - avoid for now.
 	if(strcmp(ModuleName, "msvcrt") == 0) 
 		return true;
@@ -166,7 +166,7 @@ void printTopAllocationReport(int numToPrint){
 	// Print top allocations sites in ascending order.
 	size_t totalPrintedAllocSize = 0;
 	double bytesInAMegaByte = 1024*1024;
-	for(int i = (std::max)(int(allocsSortedBySize.size())-numToPrint, 0); i < allocsSortedBySize.size(); ++i){
+	for(size_t i = (size_t)(std::max)(int64_t(allocsSortedBySize.size())-numToPrint, int64_t(0)); i < allocsSortedBySize.size(); ++i){
 
 		stream << "Alloc size " << std::setw(5) << std::setprecision(5) << std::setfill(' ') 
 		       << allocsSortedBySize[i].second/bytesInAMegaByte << "M, stack trace: \n";
