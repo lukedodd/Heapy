@@ -24,7 +24,7 @@ Once Heapy is built the executables are put into the Release directory. To profi
 
 ```
 Heapy_x64.exe C:\Windows\SysWOW64\notepad.exe
-````
+```
 
 By default Heapy will run the given executable from the same folder as that executable. You can specify a working directory with an optional second argument:
 
