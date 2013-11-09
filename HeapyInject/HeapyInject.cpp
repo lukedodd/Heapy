@@ -203,7 +203,7 @@ void printTopAllocationReport(int numToPrint){
 struct CatchExit{
 	~CatchExit(){
 		PreventSelfProfile p;
-		printTopAllocationReport(10);
+		printTopAllocationReport(25);
 	}
 };
 CatchExit catchExit;
@@ -211,8 +211,8 @@ CatchExit catchExit;
 int heapProfileReportThread(){
 	PreventEverProfilingThisThread();
 	while(true){
-			Sleep(10000); 
-			printTopAllocationReport(10);
+		Sleep(10000); 
+		printTopAllocationReport(25);
 	}
 }
 
