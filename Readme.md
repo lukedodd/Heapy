@@ -30,7 +30,7 @@ By default Heapy will run the given executable from the same folder as that exec
 
 ```
 Heapy_x64.exe C:\Windows\SysWOW64\notepad.exe C:\A\Working\Dir
-````
+```
 
 Remember to call `Heapy_x64.exe` to profile 64 bit applications and `Heapy_Win32.exe` to profile 32 bit applications. 
 
