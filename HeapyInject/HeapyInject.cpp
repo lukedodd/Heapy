@@ -3,10 +3,10 @@
 #include <vector>
 #include <memory>
 #include <algorithm>
+#include <thread>
 
 #include "HeapProfiler.h"
 
-#include "easyhook.h"
 #include "MinHook.h"
 #include "dbghelp.h"
 #include <tlhelp32.h>
@@ -173,7 +173,7 @@ void PrintTopAllocationReport(int numToPrint){
 // breaks down in practice. I'm not even that interested in leak detection on exit anyway.
 // 
 // Also: The end game will be send malloc/free information to a different
-// process instead of doing reports the same process - then shutdown issues go awaay.
+// process instead of doing reports the same process - then shutdown issues go away.
 // But for now it's more fun to work inside the injected process.
 struct CatchExit{
 	~CatchExit(){
@@ -183,10 +183,15 @@ struct CatchExit{
 };
 CatchExit catchExit;
 
-extern "C"{
+int heapProfileReportThread(){
+	PreventEverProfilingThisThread();
+	while(true){
+			Sleep(10000); 
+			PrintTopAllocationReport(10);
+	}
+}
 
-// Our injected thread is made to call this function by EasyHook.
-__declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO* InRemoteInfo){
+void setupHeapProfiling(){
 	printf("Injecting library...\n");
 
 	nUsedMallocHooks = 0;
@@ -211,14 +216,41 @@ __declspec(dllexport) void __stdcall NativeInjectionEntryPoint(REMOTE_ENTRY_INFO
 	// Trawl though loaded modules and hook any mallocs and frees we find.
 	SymEnumerateModules(GetCurrentProcess(), enumModulesCallback, NULL);
 
-	printf("Starting hooked application...\n");
-	RhWakeUpProcess();
+	// Spawn and a new thread which prints allocation report every 10 seconds.
+	//
+	// We can't use std::thread here because of deadlock issues which can happen 
+	// when creating a thread in dllmain.
+	// Some background: http://blogs.msdn.com/b/oldnewthing/archive/2007/09/04/4731478.aspx
+	//
+	// We have to create a new thread because we "signal" back to the injector that it is
+	// safe to resume the injectees main thread by terminating the injected thread.
+	// (The injected thread ran LoadLibrary so got us unti DllMain DLL_PROCESS_ATTACH.)
+	//
+	// TODO: Could we signal a different way, or awake the main thread from the dll thread
+	// and do the reports from the injeted thread. This was what EasyHook was doing.
+	// I feel like that might have some benefits (more stable?)
+	CreateThread(0, 0, (LPTHREAD_START_ROUTINE)&heapProfileReportThread, NULL, 0, NULL);
+}
 
-	// Print an allocation report every 10 seconds while the application is running.
-	while(true){
-		PrintTopAllocationReport(10);
-		Sleep(10000); 
+extern "C"{
+
+BOOL APIENTRY DllMain(HANDLE hModule, DWORD reasonForCall, LPVOID lpReserved){
+	switch (reasonForCall){
+		case DLL_PROCESS_ATTACH:
+			setupHeapProfiling();
+		break;
+		case DLL_THREAD_ATTACH:
+			printf("DLL_THREAD_ATTATCH\n");
+		break;
+		case DLL_THREAD_DETACH:
+			printf("DLL_THREAD_DETATCH\n");
+		break;
+		case DLL_PROCESS_DETACH:
+			printf("DLL_PROCESS_DETATCH\n");
+		break;
 	}
+
+	return TRUE;
 }
 
 }
