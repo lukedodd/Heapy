@@ -4,7 +4,7 @@
 #include <set>
 #include <mutex>
 
-const int backtraceSize = 256;
+const int backtraceSize = 64;
 typedef unsigned long StackHash;
 
 struct StackTrace{

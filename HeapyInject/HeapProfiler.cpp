@@ -1,9 +1,11 @@
 #include "HeapProfiler.h"
-#include <algorithm>
 
 #include <Windows.h>
 #include <stdio.h>
 #include "dbghelp.h"
+
+#include <algorithm>
+
 
 StackTrace::StackTrace() : hash(0){
 	memset(backtrace, 0, sizeof(void*)*backtraceSize);
