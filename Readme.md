@@ -43,7 +43,7 @@ Every 10 seconds and on the termination of your program information will be adde
 
 Currently the report is very simple. Allocations are collated on a per stack trace basis. Each time we add information to the report we simply write out the top 25 allocating stack traces and the amount of memory they allocated.
 
-Note that Heapy always *appends* to a report. You will have to delete/rename Heapy_Profile.txt or just scroll to the bottom when repeatedly profiling. 
+Note that Heapy always *appends* to a report. You will have to delete/rename `Heapy_Profile.txt` or just scroll to the bottom when repeatedly profiling. 
 
 Example
 -------
