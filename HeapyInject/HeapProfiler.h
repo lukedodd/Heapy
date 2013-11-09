@@ -1,4 +1,5 @@
 #pragma once
+#include <ostream>
 #include <vector>
 #include <unordered_map>
 #include <set>
@@ -13,7 +14,7 @@ struct StackTrace{
 
 	StackTrace();
 	void trace(); 
-	void print() const;
+	void print(std::ostream &stream) const;
 };
 
 class HeapProfiler{

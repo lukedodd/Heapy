@@ -5,7 +5,7 @@
 #include "dbghelp.h"
 
 #include <algorithm>
-
+#include <iomanip>
 
 StackTrace::StackTrace() : hash(0){
 	memset(backtrace, 0, sizeof(void*)*backtraceSize);
@@ -15,7 +15,7 @@ void StackTrace::trace(){
 	CaptureStackBackTrace(0, backtraceSize, backtrace, &hash);
 }
 
-void StackTrace::print() const {
+void StackTrace::print(std::ostream &stream) const {
 	HANDLE process = GetCurrentProcess();
 
 	const int MAXSYMBOLNAME = 128 - sizeof(IMAGEHLP_SYMBOL64);
@@ -24,11 +24,12 @@ void StackTrace::print() const {
 	symbol64->SizeOfStruct = sizeof(IMAGEHLP_SYMBOL64);
 	symbol64->MaxNameLength = MAXSYMBOLNAME - 1;
 
-	printf("Start stack trace print.\n");
 	for(int i = 0; i < backtraceSize; ++i){
 		if(backtrace[i]){
-			if(SymGetSymFromAddr(process, (DWORD64)backtrace[i], 0, symbol64))
-				printf("%08x, %s\n", backtrace[i], symbol64->Name);
+			if(SymGetSymFromAddr(process, (DWORD64)backtrace[i], 0, symbol64)){
+				stream << "     " << symbol64->Name << "    (" << 
+				std::setw(sizeof(void*)*2) << std::setfill('0') << backtrace[i] <<  ")\n";
+			}
 		}else{
 			break;
 		}

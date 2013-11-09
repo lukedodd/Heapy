@@ -2,8 +2,11 @@
 #include <mutex>
 #include <vector>
 #include <memory>
-#include <algorithm>
+#include <numeric>
 #include <thread>
+#include <fstream>
+#include <iomanip>
+#include <algorithm>
 
 #include "HeapProfiler.h"
 
@@ -145,21 +148,43 @@ BOOL enumModulesCallback(PCSTR ModuleName, DWORD64 BaseOfDll, PVOID UserContext)
 	return true;
 }
 
-void PrintTopAllocationReport(int numToPrint){
+void printTopAllocationReport(int numToPrint){
+	std::ofstream stream("Heapy_Profile.txt",  std::ios::out | std::ios::app);
+	stream << "=======================================\n\n";
+	stream << "Printing top " << numToPrint << " allocation points.\n\n";
+
 	std::vector<std::pair<StackTrace, size_t>> allocsSortedBySize;
 	heapProfiler->getAllocationSiteReport(allocsSortedBySize);
 
 	// Sort retured allocation sites by size of memory allocated, descending.
-	std::sort(allocsSortedBySize.begin(), allocsSortedBySize.end(), [](const std::pair<StackTrace, size_t> &a,
-											   const std::pair<StackTrace, size_t> &b){
-		return a.second > b.second;
-	});
+	std::sort(allocsSortedBySize.begin(), allocsSortedBySize.end(), 
+		[](const std::pair<StackTrace, size_t> &a, const std::pair<StackTrace, size_t> &b){
+			return a.second < b.second;
+		}
+	);
 	
-	// Print top allocations sites.
-	for(int i = 0; i < (std::min)(size_t(numToPrint), allocsSortedBySize.size()); ++i){
-		printf("Alloc size %d\n", allocsSortedBySize[i].second);
-		allocsSortedBySize[i].first.print();
+	// Print top allocations sites in ascending order.
+	size_t totalPrintedAllocSize = 0;
+	double bytesInAMegaByte = 1024*1024;
+	for(int i = (std::max)(int(allocsSortedBySize.size())-numToPrint, 0); i < allocsSortedBySize.size(); ++i){
+
+		stream << "Alloc size " << std::setw(5) << std::setprecision(5) << std::setfill(' ') 
+		       << allocsSortedBySize[i].second/bytesInAMegaByte << "M, stack trace: \n";
+		allocsSortedBySize[i].first.print(stream);
+		stream << "\n";
+
+		totalPrintedAllocSize += allocsSortedBySize[i].second;
 	}
+
+	size_t totalAlloctaions = std::accumulate(allocsSortedBySize.begin(), allocsSortedBySize.end(), size_t(0),
+		[](size_t a,  const std::pair<StackTrace, size_t> &b){
+			return a + b.second;
+		}
+	);
+
+	stream << "Top " << numToPrint << " allocations: " << std::setw(5) << std::setprecision(5) << totalPrintedAllocSize/bytesInAMegaByte << "M\n";
+	stream << "Total allocations: " << totalAlloctaions/bytesInAMegaByte << "M" << 
+		" (difference between printed and top " << numToPrint << " allocations : " << (totalAlloctaions - totalPrintedAllocSize)/bytesInAMegaByte << "M)\n\n";
 }
 
 // Do an allocation report on exit.
@@ -178,7 +203,7 @@ void PrintTopAllocationReport(int numToPrint){
 struct CatchExit{
 	~CatchExit(){
 		PreventSelfProfile p;
-		PrintTopAllocationReport(10);
+		printTopAllocationReport(10);
 	}
 };
 CatchExit catchExit;
@@ -187,7 +212,7 @@ int heapProfileReportThread(){
 	PreventEverProfilingThisThread();
 	while(true){
 			Sleep(10000); 
-			PrintTopAllocationReport(10);
+			printTopAllocationReport(10);
 	}
 }
 
