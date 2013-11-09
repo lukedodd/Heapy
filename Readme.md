@@ -129,3 +129,11 @@ How It Works
 -----------
 
 Soon I will write up a blog post (at lukedodd.com) describing how Heapy is implemented. For now hopefully the code will suffice.
+
+Future
+------
+
+Right now Heapy is pretty much a proof of concept. I wanted to prove that robustly hooking the memory allocation functions in unmodified applications was possible. Now there are many possibilities!
+
+Heapy could be extended to be a much more fully featured heap profiler quite easily. I hope to add at least more fully featured and configurable reporting. Ideally Heapy would be extended to have a GUI which would let users explore and visualise profiling results as the application is running.
+
