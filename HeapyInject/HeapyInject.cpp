@@ -168,8 +168,11 @@ void printTopAllocationReport(int numToPrint){
 	double bytesInAMegaByte = 1024*1024;
 	for(size_t i = (size_t)(std::max)(int64_t(allocsSortedBySize.size())-numToPrint, int64_t(0)); i < allocsSortedBySize.size(); ++i){
 
+		if(allocsSortedBySize[i].second == 0)
+			continue;
+
 		stream << "Alloc size " << std::setw(5) << std::setprecision(5) << std::setfill(' ') 
-		       << allocsSortedBySize[i].second/bytesInAMegaByte << "M, stack trace: \n";
+		       << allocsSortedBySize[i].second/bytesInAMegaByte << "Mb, stack trace: \n";
 		allocsSortedBySize[i].first.print(stream);
 		stream << "\n";
 
@@ -182,9 +185,10 @@ void printTopAllocationReport(int numToPrint){
 		}
 	);
 
-	stream << "Top " << numToPrint << " allocations: " << std::setw(5) << std::setprecision(5) << totalPrintedAllocSize/bytesInAMegaByte << "M\n";
-	stream << "Total allocations: " << totalAlloctaions/bytesInAMegaByte << "M" << 
-		" (difference between printed and top " << numToPrint << " allocations : " << (totalAlloctaions - totalPrintedAllocSize)/bytesInAMegaByte << "M)\n\n";
+	size_t n = (std::min)(size_t(numToPrint), allocsSortedBySize.size());
+	stream << "Top " << n << " allocations: " << totalPrintedAllocSize/bytesInAMegaByte << "Mb\n";
+	stream << "Total allocations: " << totalAlloctaions/bytesInAMegaByte << "Mb" << 
+		" (difference between printed and top " << n << " allocations : " << (totalAlloctaions - totalPrintedAllocSize)/bytesInAMegaByte << "Mb)\n\n";
 }
 
 // Do an allocation report on exit.
