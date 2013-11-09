@@ -12,7 +12,7 @@ else(CMAKE_SIZEOF_VOID_P EQUAL 8)
 endif(CMAKE_SIZEOF_VOID_P EQUAL 8)
 
 
-add_library(HeapyInjectDll SHARED HeapyInject/HeapyInject.cpp HeapyInject/HeapProfiler.cpp)
+add_library(HeapyInjectDll SHARED HeapyInject/HeapyInject.cpp HeapyInject/HeapProfiler.cpp HeapyInject/HeapProfiler.h)
 target_link_libraries(HeapyInjectDll MinHook dbghelp.lib)
 
 add_executable(Heapy Heapy/Heapy.cpp)

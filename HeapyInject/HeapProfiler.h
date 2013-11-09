@@ -31,7 +31,7 @@ private:
 		StackTrace trace;
 		std::unordered_map<void *, size_t> allocations;
 	};
-	std::unordered_map<StackHash, TraceInfo> allocations;
+	std::unordered_map<StackHash, TraceInfo> stackTraces;
 	std::unordered_map<void*, StackHash> ptrs;
 
 };

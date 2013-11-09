@@ -39,20 +39,27 @@ void StackTrace::print(std::ostream &stream) const {
 void HeapProfiler::malloc(void *ptr, size_t size, const StackTrace &trace){
 	std::lock_guard<std::mutex> lk(mutex);
 
-	if(allocations.find(trace.hash) == allocations.end()){
-		allocations[trace.hash].trace = trace;
+	// Locate or create this stacktrace in the allocations map.
+	if(stackTraces.find(trace.hash) == stackTraces.end()){
+		stackTraces[trace.hash].trace = trace;
 	}
 
-	allocations[trace.hash].allocations[ptr] = size;
+	// Store the size for this allocation this stacktraces allocation map.
+	stackTraces[trace.hash].allocations[ptr] = size;
+
+	// Store the stracktrace hash of this allocation in the pointers map.
 	ptrs[ptr] = trace.hash;
 }
 
 void HeapProfiler::free(void *ptr, const StackTrace &trace){
 	std::lock_guard<std::mutex> lk(mutex);
+
+	// On a free we remove the pointer from the ptrs map and the
+	// allocating stack traces map.
 	auto it = ptrs.find(ptr);
 	if(it != ptrs.end()){
 		StackHash stackHash = it->second;
-		allocations[stackHash].allocations.erase(ptr); 
+		stackTraces[stackHash].allocations.erase(ptr); 
 		ptrs.erase(it);
 	}else{
 		// Do anything with wild pointer frees?
@@ -63,12 +70,14 @@ void HeapProfiler::getAllocationSiteReport(std::vector<std::pair<StackTrace, siz
 	std::lock_guard<std::mutex> lk(mutex);
 	allocs.clear();
 
-	// For each allocation 
-	for(auto &traceInfo : allocations){
+	// For each allocation point.
+	for(auto &traceInfo : stackTraces){
+		// Sum up the size of all the allocations made.
 		size_t sumOfAlloced = 0;
 		for(auto &alloc : traceInfo.second.allocations)
 			sumOfAlloced += alloc.second;
 
+		// Add to alloation site report.
 		allocs.push_back(std::make_pair(traceInfo.second.trace, sumOfAlloced));
 	}
 }
