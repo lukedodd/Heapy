@@ -192,6 +192,8 @@ int heapProfileReportThread(){
 }
 
 void setupHeapProfiling(){
+	// We use printfs thoughout injection becasue it's just safer/less troublesome
+	// than iostreams for this sort of low-level/hacky/threaded work.
 	printf("Injecting library...\n");
 
 	nUsedMallocHooks = 0;
@@ -240,13 +242,10 @@ BOOL APIENTRY DllMain(HANDLE hModule, DWORD reasonForCall, LPVOID lpReserved){
 			setupHeapProfiling();
 		break;
 		case DLL_THREAD_ATTACH:
-			printf("DLL_THREAD_ATTATCH\n");
 		break;
 		case DLL_THREAD_DETACH:
-			printf("DLL_THREAD_DETATCH\n");
 		break;
 		case DLL_PROCESS_DETACH:
-			printf("DLL_PROCESS_DETATCH\n");
 		break;
 	}
 
