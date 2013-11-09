@@ -77,14 +77,27 @@ extern "C" int main(int argc, char* argv[]){
 	else
 		injectionTargetWorkingDirectory = getDirectoryOfFile(injectionTarget);
 
+
+	bool win64 = false;
+	#ifdef _WIN64
+		win64 = true;
+	#endif
+	// Select correct dll name depending on whether x64 or win32 version launched.
+	std::string heapyInjectDllName;
+	if(win64)
+		heapyInjectDllName = "HeapyInject_x64.dll";
+	else
+		heapyInjectDllName = "HeapyInject_Win32.dll";
+
 	// Assume that the injection payload dll is in the same directory as the exe.
 	std::string exePath(argv[0]);
-	std::string dllPath = getDirectoryOfFile(exePath) + "/HeapyInjectDll.dll";
+	std::string dllPath = getDirectoryOfFile(exePath) + "\\" + heapyInjectDllName;
 
 	// Start our new process with a suspended main thread.
 	std::cout << "Starting process with heap profiling enabled..." << std::endl;
 	std::cout << "Exe path: " << exePath << std::endl;
 	std::cout << "Working directory: " << injectionTargetWorkingDirectory << std::endl;
+	std::cout << "Dll to inject: " << dllPath << std::endl;
 
 	DWORD flags = CREATE_SUSPENDED;
 	PROCESS_INFORMATION pi;
@@ -96,13 +109,21 @@ extern "C" int main(int argc, char* argv[]){
 		return -1;
 	}
 		
-
 	// Inject our dll.
 	// This method returns only when injection thread returns.
 	try{
-		LoadLibraryInjection(pi.hProcess, dllPath.c_str());
+		if(!LoadLibraryInjection(pi.hProcess, dllPath.c_str())){
+			throw std::runtime_error("LoadLibrary failed!");
+		}
 	}catch(const std::exception &e){
-		std::cerr << "Error while injecting process: " << e.what() << std::endl;
+		std::cerr << "\n";
+		std::cerr << "Error while injecting process: " << e.what() << "\n\n";
+		std::cerr << "Check that the hook dll (" << dllPath << " is in the correct location.\n\n";
+		std::cerr << "Are you trying to inject a " << (win64 ? " 32 bit " : " 64 bit ") << " application using the "
+			<<  (win64 ? " 64 bit " : " 32 bit ") << " injector?\n\n";
+
+		// TODO: figure out how to terminate thread. This does not always work.
+		TerminateProcess(pi.hProcess, 0);
 		return -1;
 	}
 	
@@ -110,4 +131,3 @@ extern "C" int main(int argc, char* argv[]){
 	ResumeThread(pi.hThread);
 	return 0;
 }
-

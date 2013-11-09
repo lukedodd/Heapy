@@ -1,9 +1,3 @@
-EasyHook
-========
-
-From http://easyhook.codeplex.com/
-
-2.7 beta binaries: EasyHook-2.7.4761.0-Binaries.zip\NetFX3.5\
 
 MinHook
 =======
