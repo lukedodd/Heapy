@@ -45,3 +45,5 @@ _ReSharper*/
 
 #Project files
 [Bb]uild/
+
+dist/

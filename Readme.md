@@ -20,7 +20,7 @@ Be sure to select the correct configuration for your needs: a release Win32 or x
 Usage
 -----
 
-Once Heapy is built the executables are put into the Release directory. To profile an application simply run Heapy.exe with the first argument as the path to the exe you wish to profile. Make sure that the debug database (`.pdb` file) is in the same directory as your target application so that you get symbol information in your stack traces.
+Once Heapy is built the executables are put into the Release directory. To profile an application simply run Heapy.exe with the first argument as the path to the exe you wish to profile. Make sure that the debug database (`.pdb` file) is in the same directory as your target application so that you get symbol information in your stack traces. You can profile release builds but profiling debug or unoptimised builds gives the nicest stack traces.
 
 ```
 Heapy_x64.exe C:\Windows\SysWOW64\notepad.exe

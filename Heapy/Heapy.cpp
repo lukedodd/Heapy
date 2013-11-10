@@ -56,7 +56,10 @@ DWORD LoadLibraryInjection(HANDLE proc, const char *dllName){
 
 std::string getDirectoryOfFile(const std::string &file){
 	size_t pos = (std::min)(file.find_last_of("/"), file.find_last_of("\\"));
-	return file.substr(0, pos);
+	if(pos == std::string::npos)
+		return ".";
+	else
+		return file.substr(0, pos);
 }
 
 extern "C" int main(int argc, char* argv[]){
