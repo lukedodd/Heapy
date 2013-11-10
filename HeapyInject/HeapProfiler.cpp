@@ -24,11 +24,26 @@ void StackTrace::print(std::ostream &stream) const {
 	symbol->SizeOfStruct = sizeof(IMAGEHLP_SYMBOL);
 	symbol->MaxNameLength = MAXSYMBOLNAME - 1;
 
-	for(int i = 0; i < backtraceSize; ++i){
+	// Print out stack trace. Skip the first frame (that's our hook function.)
+	for(size_t i = 1; i < backtraceSize; ++i){ 
 		if(backtrace[i]){
+			// Output stack frame symbols if available.
 			if(SymGetSymFromAddr(process, (DWORD64)backtrace[i], 0, symbol)){
-				stream << "     " << symbol->Name << "    (" << 
-				std::setw(sizeof(void*)*2) << std::setfill('0') << backtrace[i] <<  ")\n";
+
+				stream << "    " << symbol->Name;
+
+				// Output filename + line info if available.
+				IMAGEHLP_LINE lineSymbol = {0};
+				lineSymbol.SizeOfStruct = sizeof(IMAGEHLP_LINE);
+				DWORD displacement;
+				if(SymGetLineFromAddr(process, (DWORD64)backtrace[i], &displacement, &lineSymbol)){
+					stream << "    " << lineSymbol.FileName << ":" << lineSymbol.LineNumber;
+				}
+				
+
+				stream << "    (" << std::setw(sizeof(void*)*2) << std::setfill('0') << backtrace[i] <<  ")\n";
+			}else{
+				stream << "    <no symbol> " << "    (" << std::setw(sizeof(void*)*2) << std::setfill('0') << backtrace[i] <<  ")\n";
 			}
 		}else{
 			break;
