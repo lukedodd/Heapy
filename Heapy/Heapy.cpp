@@ -95,7 +95,7 @@ extern "C" int main(int argc, char* argv[]){
 
 	// Start our new process with a suspended main thread.
 	std::cout << "Starting process with heap profiling enabled..." << std::endl;
-	std::cout << "Exe path: " << exePath << std::endl;
+	std::cout << "Target exe path: " << injectionTarget << std::endl;
 	std::cout << "Working directory: " << injectionTargetWorkingDirectory << std::endl;
 	std::cout << "Dll to inject: " << dllPath << std::endl;
 
@@ -129,5 +129,10 @@ extern "C" int main(int argc, char* argv[]){
 	
 	// Once the injection thread has returned it is safe to resume the main thread.
 	ResumeThread(pi.hThread);
+
+	// Wait for the target application to exit. 
+	// This doesn't matter to much, but makes heapy nicer to use in test scripts.
+	// (Like the ProfileTestApplication project.)
+	WaitForSingleObject(pi.hProcess, INFINITE);
 	return 0;
 }

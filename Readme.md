@@ -48,10 +48,11 @@ Note that Heapy always *appends* to a report. You will have to delete/rename `He
 Example
 -------
 
-This tiny test program:
+This tiny test program `TestApplication`:
 
 ```C++
 #include <windows.h>
+#include <iostream>
 
 void LeakyFunction(){
 	malloc(1024*1024*5); // leak 5Mb
@@ -59,19 +60,21 @@ void LeakyFunction(){
 
 void NonLeakyFunction(){
 	auto p = malloc(1024*1024); // allocate 1Mb
+	std::cout << "TestApplication: Sleeping..." << std::endl;
 	Sleep(15000);
 	free(p); // free the Mb
 }
 
 int main()
 {
+	std::cout << "TestApplication: Creating some leaks..." << std::endl;
 	for(int i = 0; i < 5; ++i){
 		LeakyFunction();
 	}
 	NonLeakyFunction();
+	std::cout << "TestApplication: Exiting..." << std::endl;
 	return 0;
 }
-
 ```
 
 Gave the following two reports after being run with heapy:
@@ -81,25 +84,23 @@ Gave the following two reports after being run with heapy:
 
 Printing top 25 allocation points.
 
-Alloc size     1Mb, stack trace: 
-     mallocHook<0>    (0FFB0719)
-     NonLeakyFunction    (00C0CF18)
-     main    (00C0C942)
-     __tmainCRTStartup    (00C0C87A)
-     mainCRTStartup    (00C0CA5D)
-     BaseThreadInitThunk    (75C6336A)
-     RtlInitializeExceptionChain    (77089F72)
-     RtlInitializeExceptionChain    (77089F45)
+Alloc size 1Mb, stack trace: 
+    mallocHook<0>    x:\heapy\heapyinject\heapyinject.cpp:66    (000007FEF4530EC0)
+    NonLeakyFunction    x:\heapy\testapplication\main.cpp:9    (000000013F9E163F)
+    main    x:\heapy\testapplication\main.cpp:22    (000000013F9E16EE)
+    __tmainCRTStartup    f:\dd\vctools\crt_bld\self_64_amd64\crt\src\crt0.c:241    (000000013FA34C7C)
+    mainCRTStartup    f:\dd\vctools\crt_bld\self_64_amd64\crt\src\crt0.c:164    (000000013FA34DBE)
+    BaseThreadInitThunk    (00000000775E652D)
+    RtlUserThreadStart    (000000007781C541)
 
-Alloc size    25Mb, stack trace: 
-     mallocHook<0>    (0FFB0719)
-     LeakyFunction    (00C0C448)
-     main    (00C0C93B)
-     __tmainCRTStartup    (00C0C87A)
-     mainCRTStartup    (00C0CA5D)
-     BaseThreadInitThunk    (75C6336A)
-     RtlInitializeExceptionChain    (77089F72)
-     RtlInitializeExceptionChain    (77089F45)
+Alloc size 25Mb, stack trace: 
+    mallocHook<0>    x:\heapy\heapyinject\heapyinject.cpp:66    (000007FEF4530EC0)
+    LeakyFunction    x:\heapy\testapplication\main.cpp:6    (000000013F9E160F)
+    main    x:\heapy\testapplication\main.cpp:20    (000000013F9E16E7)
+    __tmainCRTStartup    f:\dd\vctools\crt_bld\self_64_amd64\crt\src\crt0.c:241    (000000013FA34C7C)
+    mainCRTStartup    f:\dd\vctools\crt_bld\self_64_amd64\crt\src\crt0.c:164    (000000013FA34DBE)
+    BaseThreadInitThunk    (00000000775E652D)
+    RtlUserThreadStart    (000000007781C541)
 
 Top 7 allocations: 26Mb
 Total allocations: 26Mb (difference between printed and top 7 allocations : 0Mb)
@@ -108,22 +109,22 @@ Total allocations: 26Mb (difference between printed and top 7 allocations : 0Mb)
 
 Printing top 25 allocation points.
 
-Alloc size    25Mb, stack trace: 
-     mallocHook<0>    (0FFB0719)
-     LeakyFunction    (00C0C448)
-     main    (00C0C93B)
-     __tmainCRTStartup    (00C0C87A)
-     mainCRTStartup    (00C0CA5D)
-     BaseThreadInitThunk    (75C6336A)
-     RtlInitializeExceptionChain    (77089F72)
-     RtlInitializeExceptionChain    (77089F45)
+Alloc size 25Mb, stack trace: 
+    mallocHook<0>    x:\heapy\heapyinject\heapyinject.cpp:66    (000007FEF4530EC0)
+    LeakyFunction    x:\heapy\testapplication\main.cpp:6    (000000013F9E160F)
+    main    x:\heapy\testapplication\main.cpp:20    (000000013F9E16E7)
+    __tmainCRTStartup    f:\dd\vctools\crt_bld\self_64_amd64\crt\src\crt0.c:241    (000000013FA34C7C)
+    mainCRTStartup    f:\dd\vctools\crt_bld\self_64_amd64\crt\src\crt0.c:164    (000000013FA34DBE)
+    BaseThreadInitThunk    (00000000775E652D)
+    RtlUserThreadStart    (000000007781C541)
 
 Top 7 allocations: 25Mb
 Total allocations: 25Mb (difference between printed and top 7 allocations : 0Mb)
-
 ```
 
 The first allocation report shows stack traces for both the leaky and non leaky alloc - it was taken before the non leaky alloc was freed so shows that 1Mb as in use. Note that the LeakyFunction allocation size was taken as the sum of all the calls to it from the loop. Also note that the LeakyFuncion alloc is the only allocation shown by the final report (which is generated on application exit) since these mallocs were never cleaned up!
+
+You can run Heapy on the test application above by building the `ProfileTestApplication` project in the solution (you must manually click to build that project, it's not set to build on "Build All".)
 
 How It Works
 -----------
