@@ -77,7 +77,7 @@ int main()
 }
 ```
 
-Gave the following two reports after being run with heapy:
+Gave the following two reports in `Heapy_Profile.txt` after being run with heapy:
 
 ```
 =======================================
