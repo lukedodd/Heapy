@@ -33,9 +33,6 @@ argument:
 Remember to call `Heapy_x64.exe` to profile 64 bit applications and
 `Heapy_Win32.exe` to profile 32 bit applications. 
 
-See the ProfileTestApplication_Win32.bat and ProfileTestApplication_x64.bat
-files for examples of usage.
-
 
 Results
 -------
@@ -133,6 +130,6 @@ the calls to it from the loop. Also note that the LeakyFuncion alloc is the only
 allocation shown by the final report (which is generated on application exit)
 since these mallocs were never cleaned up!
 
-You can run Heapy on the test application above by building the
-`ProfileTestApplication` project in the solution (you must manually click to
-build that project, it's not set to build on "Build All".
+You should be able to run the the ProfileTestApplication_Win32.bat or 
+ProfileTestApplication_x64.bat to generate a Heapy_Profile.txt similar to 
+the above!

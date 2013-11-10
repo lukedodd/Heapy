@@ -6,7 +6,8 @@ rd ..\dist /s/q
 mkdir ..\dist
 copy ..\Release\*.exe ..\dist
 copy ..\Release\*.dll ..\dist
+copy ..\Release\TestApplication_Win32.pdb ..\dist
+copy ..\Release\TestApplication_x64.pdb ..\dist
 copy Readme.txt ..\dist
 copy ProfileTestApplication_Win32.bat ..\dist
 copy ProfileTestApplication_x64.bat ..\dist
-
