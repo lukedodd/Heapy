@@ -107,7 +107,10 @@ BOOL CALLBACK enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVO
 	
 	// Hook mallocs.
 	if(strcmp(symbolInfo->Name, "malloc") == 0){
-		int hookN = nUsedMallocHooks;
+		if(nUsedMallocHooks >= numHooks){
+			printf("All malloc hooks used up!\n");
+			return true;
+		}
 		printf("Hooking malloc from module %s into malloc hook num %d.\n", moduleName, nUsedMallocHooks);
 		if(MH_CreateHook((void*)symbolInfo->Address, mallocHooks[nUsedMallocHooks],  (void **)&originalMallocs[nUsedMallocHooks]) != MH_OK){
 			printf("Create hook malloc failed!\n");
@@ -122,6 +125,10 @@ BOOL CALLBACK enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVO
 
 	// Hook frees.
 	if(strcmp(symbolInfo->Name, "free") == 0){
+		if(nUsedFreeHooks >= numHooks){
+			printf("All free hooks used up!\n");
+			return true;
+		}
 		printf("Hooking free from module %s into free hook num %d.\n", moduleName, nUsedFreeHooks);
 		if(MH_CreateHook((void*)symbolInfo->Address, freeHooks[nUsedFreeHooks],  (void **)&originalFrees[nUsedFreeHooks]) != MH_OK){
 			printf("Create hook free failed!\n");
