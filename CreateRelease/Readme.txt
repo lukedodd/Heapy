@@ -84,44 +84,44 @@ Gave the following two reports in `Heapy_Profile.txt` after being run with heapy
 
 	=======================================
 
-	Printing top 25 allocation points.
+	Printing top allocation points.
+
+	< Trimmed out very small allocations from std::streams >
 
 	Alloc size 1Mb, stack trace: 
-	    mallocHook<0>    x:\heapy\heapyinject\heapyinject.cpp:66    (000007FEF4530EC0)
-	    NonLeakyFunction    x:\heapy\testapplication\main.cpp:9    (000000013F9E163F)
-	    main    x:\heapy\testapplication\main.cpp:22    (000000013F9E16EE)
-	    __tmainCRTStartup    f:\dd\vctools\crt_bld\self_64_amd64\crt\src\crt0.c:241    (000000013FA34C7C)
-	    mainCRTStartup    f:\dd\vctools\crt_bld\self_64_amd64\crt\src\crt0.c:164    (000000013FA34DBE)
-	    BaseThreadInitThunk    (00000000775E652D)
-	    RtlUserThreadStart    (000000007781C541)
+	    NonLeakyFunction    e:\sourcedirectory\heapy\testapplication\main.cpp:9    (000000013FEC1D7E)
+	    main    e:\sourcedirectory\heapy\testapplication\main.cpp:22    (000000013FEC1E0D)
+	    __tmainCRTStartup    f:\dd\vctools\crt_bld\self_64_amd64\crt\src\crt0.c:241    (000000013FEC67FC)
+	    BaseThreadInitThunk    (00000000779A652D)
+	    RtlUserThreadStart    (0000000077ADC541)
 
 	Alloc size 25Mb, stack trace: 
-	    mallocHook<0>    x:\heapy\heapyinject\heapyinject.cpp:66    (000007FEF4530EC0)
-	    LeakyFunction    x:\heapy\testapplication\main.cpp:6    (000000013F9E160F)
-	    main    x:\heapy\testapplication\main.cpp:20    (000000013F9E16E7)
-	    __tmainCRTStartup    f:\dd\vctools\crt_bld\self_64_amd64\crt\src\crt0.c:241    (000000013FA34C7C)
-	    mainCRTStartup    f:\dd\vctools\crt_bld\self_64_amd64\crt\src\crt0.c:164    (000000013FA34DBE)
-	    BaseThreadInitThunk    (00000000775E652D)
-	    RtlUserThreadStart    (000000007781C541)
+	    LeakyFunction    e:\sourcedirectory\heapy\testapplication\main.cpp:6    (000000013FEC1D5E)
+	    main    e:\sourcedirectory\heapy\testapplication\main.cpp:20    (000000013FEC1E06)
+	    __tmainCRTStartup    f:\dd\vctools\crt_bld\self_64_amd64\crt\src\crt0.c:241    (000000013FEC67FC)
+	    BaseThreadInitThunk    (00000000779A652D)
+	    RtlUserThreadStart    (0000000077ADC541)
 
-	Top 7 allocations: 26Mb
-	Total allocations: 26Mb (difference between printed and top 7 allocations : 0Mb)
+	Top 13 allocations: 26.005Mb
+	Total allocations: 26.005Mb (difference between printed and top 13 allocations : 0Mb)
 
 	=======================================
 
-	Printing top 25 allocation points.
+	Printing top allocation points.
+
+	< Trimmed out very small allocations from std::streams >
 
 	Alloc size 25Mb, stack trace: 
-	    mallocHook<0>    x:\heapy\heapyinject\heapyinject.cpp:66    (000007FEF4530EC0)
-	    LeakyFunction    x:\heapy\testapplication\main.cpp:6    (000000013F9E160F)
-	    main    x:\heapy\testapplication\main.cpp:20    (000000013F9E16E7)
-	    __tmainCRTStartup    f:\dd\vctools\crt_bld\self_64_amd64\crt\src\crt0.c:241    (000000013FA34C7C)
-	    mainCRTStartup    f:\dd\vctools\crt_bld\self_64_amd64\crt\src\crt0.c:164    (000000013FA34DBE)
-	    BaseThreadInitThunk    (00000000775E652D)
-	    RtlUserThreadStart    (000000007781C541)
+	    LeakyFunction    e:\sourcedirectory\heapy\testapplication\main.cpp:6    (000000013FEC1D5E)
+	    main    e:\sourcedirectory\heapy\testapplication\main.cpp:20    (000000013FEC1E06)
+	    __tmainCRTStartup    f:\dd\vctools\crt_bld\self_64_amd64\crt\src\crt0.c:241    (000000013FEC67FC)
+	    BaseThreadInitThunk    (00000000779A652D)
+	    RtlUserThreadStart    (0000000077ADC541)
 
-	Top 7 allocations: 25Mb
-	Total allocations: 25Mb (difference between printed and top 7 allocations : 0Mb)
+	Top 5 allocations: 25.005Mb
+	Total allocations: 25.005Mb (difference between printed and top 5 allocations : 0Mb)
+
+
 
 The first allocation report shows stack traces for both the leaky and non leaky
 alloc - it was taken before the non leaky alloc was freed so shows that 1Mb as

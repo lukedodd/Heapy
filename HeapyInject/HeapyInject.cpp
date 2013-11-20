@@ -149,9 +149,6 @@ BOOL CALLBACK enumModulesCallback(PCSTR ModuleName, DWORD_PTR BaseOfDll, PVOID U
 }
 
 void printTopAllocationReport(int numToPrint){
-	std::ofstream stream("Heapy_Profile.txt",  std::ios::out | std::ios::app);
-	stream << "=======================================\n\n";
-	stream << "Printing top " << numToPrint << " allocation points.\n\n";
 
 	std::vector<std::pair<StackTrace, size_t>> allocsSortedBySize;
 	heapProfiler->getAllocationSiteReport(allocsSortedBySize);
@@ -163,9 +160,14 @@ void printTopAllocationReport(int numToPrint){
 		}
 	);
 	
+
+	std::ofstream stream("Heapy_Profile.txt",  std::ios::out | std::ios::app);
+	stream << "=======================================\n\n";
+	stream << "Printing top allocation points.\n\n";
 	// Print top allocations sites in ascending order.
 	auto precision = std::setprecision(5);
 	size_t totalPrintedAllocSize = 0;
+	size_t numPrintedAllocations = 0;
 	double bytesInAMegaByte = 1024*1024;
 	for(size_t i = (size_t)(std::max)(int64_t(allocsSortedBySize.size())-numToPrint, int64_t(0)); i < allocsSortedBySize.size(); ++i){
 
@@ -177,6 +179,7 @@ void printTopAllocationReport(int numToPrint){
 		stream << "\n";
 
 		totalPrintedAllocSize += allocsSortedBySize[i].second;
+		numPrintedAllocations++;
 	}
 
 	size_t totalAlloctaions = std::accumulate(allocsSortedBySize.begin(), allocsSortedBySize.end(), size_t(0),
@@ -185,10 +188,9 @@ void printTopAllocationReport(int numToPrint){
 		}
 	);
 
-	size_t n = (std::min)(size_t(numToPrint), allocsSortedBySize.size());
-	stream << "Top " << n << " allocations: " << precision <<  totalPrintedAllocSize/bytesInAMegaByte << "Mb\n";
+	stream << "Top " << numPrintedAllocations << " allocations: " << precision <<  totalPrintedAllocSize/bytesInAMegaByte << "Mb\n";
 	stream << "Total allocations: " << precision << totalAlloctaions/bytesInAMegaByte << "Mb" << 
-		" (difference between printed and top " << n << " allocations : " << (totalAlloctaions - totalPrintedAllocSize)/bytesInAMegaByte << "Mb)\n\n";
+		" (difference between printed and top " << numPrintedAllocations << " allocations : " << (totalAlloctaions - totalPrintedAllocSize)/bytesInAMegaByte << "Mb)\n\n";
 }
 
 // Do an allocation report on exit.
