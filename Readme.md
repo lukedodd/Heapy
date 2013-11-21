@@ -135,7 +135,7 @@ You can run Heapy on the test application above by building the `ProfileTestAppl
 How It Works
 -----------
 
-Soon I will write up a blog post (at lukedodd.com) describing how Heapy is implemented. For now hopefully the code will suffice.
+This [blog post](http://www.lukedodd.com/heapy-heap-profiler/) describes Heapy in detail.
 
 Future
 ------
