@@ -107,7 +107,7 @@ Alloc size 25Mb, stack trace:
     RtlUserThreadStart    (0000000077ADC541)
 
 Top 13 allocations: 26.005Mb
-Total allocations: 26.005Mb (difference between printed and top 13 allocations : 0Mb)
+Total allocations: 26.005Mb (difference between total and top 13 allocations : 0Mb)
 
 =======================================
 
@@ -123,7 +123,7 @@ Alloc size 25Mb, stack trace:
     RtlUserThreadStart    (0000000077ADC541)
 
 Top 5 allocations: 25.005Mb
-Total allocations: 25.005Mb (difference between printed and top 5 allocations : 0Mb)
+Total allocations: 25.005Mb (difference between total and top 5 allocations : 0Mb)
 
 
 ```

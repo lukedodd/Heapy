@@ -197,7 +197,7 @@ void printTopAllocationReport(int numToPrint){
 
 	stream << "Top " << numPrintedAllocations << " allocations: " << precision <<  totalPrintedAllocSize/bytesInAMegaByte << "Mb\n";
 	stream << "Total allocations: " << precision << totalAlloctaions/bytesInAMegaByte << "Mb" << 
-		" (difference between printed and top " << numPrintedAllocations << " allocations : " << (totalAlloctaions - totalPrintedAllocSize)/bytesInAMegaByte << "Mb)\n\n";
+		" (difference between total and top " << numPrintedAllocations << " allocations : " << (totalAlloctaions - totalPrintedAllocSize)/bytesInAMegaByte << "Mb)\n\n";
 }
 
 // Do an allocation report on exit.
