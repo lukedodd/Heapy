@@ -26,16 +26,10 @@ Be sure to select the correct configuration for your needs: a release Win32 or x
 Usage
 -----
 
-Once Heapy is built the executables are put into the Release directory. To profile an application simply run Heapy.exe with the first argument as the path to the exe you wish to profile. Make sure that the debug database (`.pdb` file) is in the same directory as your target application so that you get symbol information in your stack traces. You can profile release builds but profiling debug or unoptimised builds gives the nicest stack traces.
+Once Heapy is built the executables are put into the Release directory. To profile an application simply run Heapy.exe with the first argument as the path to the exe you wish to profile. Subsequent arguments are passed to the target application. Make sure that the debug database (`.pdb` file) is in the same directory as your target application so that you get symbol information in your stack traces. You can profile release builds but profiling debug or unoptimised builds gives the nicest stack traces.
 
 ```
-Heapy_x64.exe C:\Windows\SysWOW64\notepad.exe
-```
-
-By default Heapy will run the given executable from the same folder as that executable. You can specify a working directory with an optional second argument:
-
-```
-Heapy_x64.exe C:\Windows\SysWOW64\notepad.exe C:\A\Working\Dir
+Heapy_x64.exe C:\Windows\SysWOW64\notepad.exe test.txt
 ```
 
 Remember to call `Heapy_x64.exe` to profile 64 bit applications and `Heapy_Win32.exe` to profile 32 bit applications. 
@@ -140,7 +134,4 @@ This [blog post](http://www.lukedodd.com/heapy-heap-profiler/) describes Heapy i
 Future
 ------
 
-Right now Heapy is pretty much a proof of concept. I wanted to prove that robustly hooking the memory allocation functions in unmodified applications was possible. Now there are many possibilities!
-
-Heapy could be extended to be a much more fully featured heap profiler quite easily. I hope to add at least more fully featured and configurable reporting. Ideally Heapy would be extended to have a GUI which would let users explore and visualise profiling results as the application is running.
-
+Right now Heapy is pretty much a proof of concept that's useful enough to diagnose simple leaks. Visual Studio 2015 seems to have native heap profiling built in so I may be using that in future.
