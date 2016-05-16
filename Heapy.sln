@@ -1,12 +1,15 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2012
+Microsoft Visual Studio Solution File, Format Version 11.00
+# Visual Studio 2010
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Heapy", "Heapy\Heapy.vcxproj", "{964F661B-8FA0-4DEF-836F-0D0720972D02}"
 	ProjectSection(ProjectDependencies) = postProject
 		{F3C8DD27-15AB-4B73-A499-C32181ACACC9} = {F3C8DD27-15AB-4B73-A499-C32181ACACC9}
 	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "HeapyInject", "HeapyInject\HeapyInject.vcxproj", "{F3C8DD27-15AB-4B73-A499-C32181ACACC9}"
+	ProjectSection(ProjectDependencies) = postProject
+		{65021938-D251-46FA-BC3D-85C385D4C06D} = {65021938-D251-46FA-BC3D-85C385D4C06D}
+	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "libMinHook", "libs\MinHook\build\libMinHook.vcxproj", "{65021938-D251-46FA-BC3D-85C385D4C06D}"
 EndProject

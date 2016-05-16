@@ -3,7 +3,7 @@
 #include <vector>
 #include <unordered_map>
 #include <set>
-#include <mutex>
+#include <Windows.h>
 
 const int backtraceSize = 64;
 typedef unsigned long StackHash;
@@ -19,6 +19,8 @@ struct StackTrace{
 
 class HeapProfiler{
 public:
+	HeapProfiler();
+	~HeapProfiler();
 	void malloc(void *ptr, size_t size, const StackTrace &trace);
 	void free(void *ptr, const StackTrace &trace);
 
@@ -26,12 +28,13 @@ public:
 	// of memory currently allocated by each site.
 	void getAllocationSiteReport(std::vector<std::pair<StackTrace, size_t>> &allocs);
 private:
-	std::mutex mutex;
+	HANDLE mutex;
+	typedef std::unordered_map<void *, size_t> TraceInfoAllocCollection_t;
 	struct TraceInfo{
 		StackTrace trace;
-		std::unordered_map<void *, size_t> allocations;
+		TraceInfoAllocCollection_t allocations;
 	};
-	std::unordered_map<StackHash, TraceInfo> stackTraces;
+	typedef std::unordered_map<StackHash, TraceInfo> StackTraceCollection_t;
+	StackTraceCollection_t stackTraces;
 	std::unordered_map<void*, StackHash> ptrs;
-
 };

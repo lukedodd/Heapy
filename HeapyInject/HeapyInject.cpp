@@ -1,9 +1,7 @@
 #include <stdio.h>
-#include <mutex>
 #include <vector>
 #include <memory>
 #include <numeric>
-#include <thread>
 #include <fstream>
 #include <iomanip>
 #include <algorithm>
@@ -14,15 +12,37 @@
 #include "dbghelp.h"
 #include <tlhelp32.h>
 
+typedef __int64 int64_t;
 typedef void * (__cdecl *PtrMalloc)(size_t);
 typedef void (__cdecl *PtrFree)(void *);
 
+struct Mutex
+{
+	HANDLE m_hMutex;
+	Mutex(): m_hMutex(CreateMutex(NULL, FALSE, NULL)){
+	}
+	~Mutex(){
+		if (m_hMutex != NULL)
+			CloseHandle(m_hMutex);
+	}
+};
+
+struct lock_guard
+{
+	Mutex& m_Mutex;
+	lock_guard(Mutex& hMutex) : m_Mutex(hMutex){
+		WaitForSingleObject(m_Mutex.m_hMutex, INFINITE);
+	}
+	~lock_guard(){
+		ReleaseMutex(m_Mutex.m_hMutex);
+	}
+};
 
 // Hook tables. (Lot's of static data, but it's the only way to do this.)
 const int numHooks = 128;
-std::mutex hookTableMutex;
-int nUsedMallocHooks = 0; 
-int nUsedFreeHooks = 0; 
+Mutex hookTableMutex;
+int nUsedMallocHooks = 0;
+int nUsedFreeHooks = 0;
 PtrMalloc mallocHooks[numHooks];
 PtrFree freeHooks[numHooks];
 PtrMalloc originalMallocs[numHooks];
@@ -100,7 +120,7 @@ template<> struct InitNHooks<0>{
 
 // Callback which recieves addresses for mallocs/frees which we hook.
 BOOL CALLBACK enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVOID userContext){
-	std::lock_guard<std::mutex> lk(hookTableMutex);
+	lock_guard lk(hookTableMutex);
 	PreventSelfProfile preventSelfProfile;
 
 	PCSTR moduleName = (PCSTR)userContext;
@@ -251,7 +271,7 @@ void setupHeapProfiling(){
 
 	// Yes this leaks - cleauing it up at application exit has zero real benefit.
 	// Might be able to clean it up on CatchExit but I don't see the point.
-	heapProfiler = new HeapProfiler(); 
+	heapProfiler = new HeapProfiler();
 
 	// Trawl though loaded modules and hook any mallocs and frees we find.
 	SymEnumerateModules(GetCurrentProcess(), enumModulesCallback, NULL);

@@ -1,11 +1,7 @@
 #include <Windows.h>
 #include <Psapi.h>
-#include <strsafe.h>
 
 #include <iostream>
-#include <stdio.h>
-#include <conio.h>
-#include <thread>
 #include <vector>
 #include <string>
 #include <algorithm>
@@ -67,8 +63,8 @@ extern "C" int main(int argc, char* argv[]){
 	if(argc < 2){
 		std::cout << "No exe specified!\n\n";
 		std::cout << "Usage: Heapy <exe path> [args to pass to exe]\n\n"
-		             "       The first argument specifies the exe to launch.\n"
-		             "       Subsequent arguments are passed to launched exe.\n";
+					 "       The first argument specifies the exe to launch.\n"
+					 "       Subsequent arguments are passed to launched exe.\n";
 			 
 		return -1;
 	}
@@ -105,7 +101,7 @@ extern "C" int main(int argc, char* argv[]){
 	DWORD flags = CREATE_SUSPENDED;
 	PROCESS_INFORMATION pi;
 	STARTUPINFOA si;
-    GetStartupInfoA(&si);
+	GetStartupInfoA(&si);
 
 	// CreatePRocessA can modify input arg so do this to be safe.
 	std::vector<char> commandLineMutable(commandLine.begin(), commandLine.end()); 

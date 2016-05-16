@@ -7,6 +7,16 @@
 #include <algorithm>
 #include <iomanip>
 
+struct lock_guard{
+	HANDLE m_hMutex;
+	lock_guard(HANDLE hMutex) : m_hMutex(hMutex){
+		WaitForSingleObject(hMutex, INFINITE);
+	}
+	~lock_guard(){
+		ReleaseMutex(m_hMutex);
+	}
+};
+
 StackTrace::StackTrace() : hash(0){
 	memset(backtrace, 0, sizeof(void*)*backtraceSize);
 }
@@ -51,8 +61,17 @@ void StackTrace::print(std::ostream &stream) const {
 	}
 }
 
+HeapProfiler::HeapProfiler() : mutex(CreateMutex(NULL, FALSE, NULL)), stackTraces(), ptrs(){
+}
+
+HeapProfiler::~HeapProfiler()
+{
+	if (mutex != NULL)
+		CloseHandle(mutex);
+}
+
 void HeapProfiler::malloc(void *ptr, size_t size, const StackTrace &trace){
-	std::lock_guard<std::mutex> lk(mutex);
+	lock_guard lk(mutex);
 
 	// Locate or create this stacktrace in the allocations map.
 	if(stackTraces.find(trace.hash) == stackTraces.end()){
@@ -67,7 +86,7 @@ void HeapProfiler::malloc(void *ptr, size_t size, const StackTrace &trace){
 }
 
 void HeapProfiler::free(void *ptr, const StackTrace &trace){
-	std::lock_guard<std::mutex> lk(mutex);
+	lock_guard lk(mutex);
 
 	// On a free we remove the pointer from the ptrs map and the
 	// allocating stack traces map.
@@ -82,15 +101,19 @@ void HeapProfiler::free(void *ptr, const StackTrace &trace){
 }
 
 void HeapProfiler::getAllocationSiteReport(std::vector<std::pair<StackTrace, size_t>> &allocs){
-	std::lock_guard<std::mutex> lk(mutex);
+	lock_guard lk(mutex);
 	allocs.clear();
 
+	typedef StackTraceCollection_t::iterator StackTraceIterator;
+	typedef TraceInfoAllocCollection_t::iterator AllocationIterator;
 	// For each allocation point.
-	for(auto &traceInfo : stackTraces){
+	for (StackTraceIterator iter = stackTraces.begin(); iter != stackTraces.end(); ++iter){
+		std::pair<const StackHash, TraceInfo>& traceInfo = *iter;
 		// Sum up the size of all the allocations made.
 		size_t sumOfAlloced = 0;
-		for(auto &alloc : traceInfo.second.allocations)
-			sumOfAlloced += alloc.second;
+		for (AllocationIterator allocIter = traceInfo.second.allocations.begin(); 
+			allocIter != traceInfo.second.allocations.end(); ++allocIter)
+			sumOfAlloced += allocIter->second;
 
 		// Add to alloation site report.
 		allocs.push_back(std::make_pair(traceInfo.second.trace, sumOfAlloced));
