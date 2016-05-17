@@ -169,8 +169,8 @@
     <ClInclude Include="HeapProfiler.h" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\libs\MinHook\build\libMinHook.vcxproj">
-      <Project>{65021938-d251-46fa-bc3d-85c385d4c06d}</Project>
+    <ProjectReference Include="..\libs\MinHook\build\VC10\libMinHook.vcxproj">
+      <Project>{f142a341-5ee0-442d-a15f-98ae9b48dbae}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

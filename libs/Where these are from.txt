@@ -4,7 +4,7 @@ MinHook
 
 This guys MinHook fork:
 
-https://github.com/RaMMicHaeL/minhook commit 4141fefb4445d41e8506d8f72801a27e1b8874c6
+https://github.com/TsudaKageyu/minhook.git commit 0740da73c50a7e735b9ff1d1660dac18aeb16e5d
 
 MinHook is originally from codeproject.com: http://www.codeproject.com/Articles/44326/MinHook-The-Minimalistic-x86-x64-API-Hooking-Libra
 
