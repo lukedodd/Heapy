@@ -52,18 +52,21 @@ PtrFree originalFrees[numHooks];
 HeapProfiler *heapProfiler;
 
 // Mechanism to stop us profiling ourself.
-static __declspec( thread ) int _depthCount = 0; // use thread local count
+DWORD tlsIndex;
 
 struct PreventSelfProfile{
 	PreventSelfProfile(){
-		_depthCount++;
+		int depthCount = (int)TlsGetValue(tlsIndex);
+		TlsSetValue(tlsIndex, (LPVOID)(depthCount+1));
 	}
 	~PreventSelfProfile(){
-		_depthCount--;
+		int depthCount = (int)TlsGetValue(tlsIndex);
+		TlsSetValue(tlsIndex, (LPVOID)(depthCount-1));
 	}
 
 	inline bool shouldProfile(){
-		return _depthCount <= 1;
+		int depthCount = (int)TlsGetValue(tlsIndex);
+		return depthCount <= 1;
 	}
 private:
 	PreventSelfProfile(const PreventSelfProfile&){}
@@ -71,7 +74,8 @@ private:
 };
 
 void PreventEverProfilingThisThread(){
-	_depthCount++;
+	int depthCount = (int)TlsGetValue(tlsIndex);
+	TlsSetValue(tlsIndex, (LPVOID)(depthCount+1));
 }
 
 // Malloc hook function. Templated so we can hook many mallocs.
@@ -268,6 +272,8 @@ void setupHeapProfiling(){
 	nUsedMallocHooks = 0;
 	nUsedFreeHooks = 0;
 
+	tlsIndex = TlsAlloc();
+	TlsSetValue(tlsIndex, (LPVOID)0);
 	PreventEverProfilingThisThread();
 
 	// Create our hook pointer tables using template meta programming fu.
