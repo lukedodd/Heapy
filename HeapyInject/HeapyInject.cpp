@@ -271,7 +271,8 @@ void setupHeapProfiling(){
 
 	// Yes this leaks - cleauing it up at application exit has zero real benefit.
 	// Might be able to clean it up on CatchExit but I don't see the point.
-	heapProfiler = new HeapProfiler();
+	void* p = HeapAlloc(GetProcessHeap(), 0, sizeof(HeapProfiler));
+	heapProfiler = new(p) HeapProfiler();
 
 	// Trawl though loaded modules and hook any mallocs and frees we find.
 	SymEnumerateModules(GetCurrentProcess(), enumModulesCallback, NULL);
