@@ -77,14 +77,20 @@ void PreventEverProfilingThisThread(){
 // Malloc hook function. Templated so we can hook many mallocs.
 template <int N>
 void * __cdecl mallocHook(size_t size){
-	PreventSelfProfile preventSelfProfile;
+	void * p;
+	DWORD lastError;
+	{
+		PreventSelfProfile preventSelfProfile;
 
-	void * p = originalMallocs[N](size);
-	if(preventSelfProfile.shouldProfile()){
-		StackTrace trace;
-		trace.trace();
-		heapProfiler->malloc(p, size, trace);
+		p = originalMallocs[N](size);
+		lastError = GetLastError();
+		if(preventSelfProfile.shouldProfile()){
+			StackTrace trace;
+			trace.trace();
+			heapProfiler->malloc(p, size, trace);
+		}
 	}
+	SetLastError(lastError);
 
 	return p;
 }
@@ -92,14 +98,19 @@ void * __cdecl mallocHook(size_t size){
 // Free hook function.
 template <int N>
 void  __cdecl freeHook(void * p){
-	PreventSelfProfile preventSelfProfile;
+	DWORD lastError;
+	{
+		PreventSelfProfile preventSelfProfile;
 
-	originalFrees[N](p);
-	if(preventSelfProfile.shouldProfile()){
-		StackTrace trace;
-		trace.trace();
-		heapProfiler->free(p, trace);
+		originalFrees[N](p);
+		lastError = GetLastError();
+		if(preventSelfProfile.shouldProfile()){
+			StackTrace trace;
+			trace.trace();
+			heapProfiler->free(p, trace);
+		}
 	}
+	SetLastError(lastError);
 }
 
 // Template recursion to init a hook table.
