@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <vector>
 #include <memory>
 #include <numeric>
@@ -15,6 +14,8 @@
 typedef __int64 int64_t;
 typedef void * (__cdecl *PtrMalloc)(size_t);
 typedef void (__cdecl *PtrFree)(void *);
+typedef void* (__cdecl *PtrRealloc)(void *, size_t);
+typedef void * (__cdecl *PtrCalloc)(size_t, size_t);
 
 struct Mutex
 {
@@ -43,10 +44,16 @@ const int numHooks = 128;
 Mutex hookTableMutex;
 int nUsedMallocHooks = 0;
 int nUsedFreeHooks = 0;
+int nUsedReallocHooks = 0;
+int nUsedCallocHooks = 0;
 PtrMalloc mallocHooks[numHooks];
 PtrFree freeHooks[numHooks];
+PtrRealloc reallocHooks[numHooks];
+PtrCalloc callocHooks[numHooks];
 PtrMalloc originalMallocs[numHooks];
 PtrFree originalFrees[numHooks];
+PtrRealloc originalReallocs[numHooks];
+PtrCalloc originalCallocs[numHooks];
 // TODO?: Special case for debug build malloc/frees?
 
 HeapProfiler *heapProfiler;
@@ -117,6 +124,57 @@ void  __cdecl freeHook(void * p){
 	SetLastError(lastError);
 }
 
+// Realloc hook function. Templated so we can hook many mallocs.
+template <int N>
+void * __cdecl reallocHook(void* memblock, size_t size){
+	void * p;
+	DWORD lastError;
+	{
+		PreventSelfProfile preventSelfProfile;
+
+		p = originalReallocs[N](memblock, size);
+		lastError = GetLastError();
+		if (size == 0 || memblock == NULL || p == NULL){
+			// do nothing
+			// size == 0 -> call free()
+			// memblock == NULL -> call malloc()
+			// p == NULL -> no memory, memblock not touched
+		}
+		else {
+			if(preventSelfProfile.shouldProfile()){
+				StackTrace trace;
+				trace.trace();
+				heapProfiler->free(memblock, trace);
+				heapProfiler->malloc(p, size, trace);
+			}
+		}
+	}
+	SetLastError(lastError);
+
+	return p;
+}
+
+// Calloc hook function. Templated so we can hook many Callocs.
+template <int N>
+void * __cdecl callocHook(size_t num, size_t size){
+	void * p;
+	DWORD lastError;
+	{
+		PreventSelfProfile preventSelfProfile;
+
+		p = originalCallocs[N](num, size);
+		lastError = GetLastError();
+		if(preventSelfProfile.shouldProfile()){
+			StackTrace trace;
+			trace.trace();
+			heapProfiler->malloc(p, num * size, trace);
+		}
+	}
+	SetLastError(lastError);
+
+	return p;
+}
+
 // Template recursion to init a hook table.
 template<int N> struct InitNHooks{
 	static void initHook(){
@@ -124,6 +182,8 @@ template<int N> struct InitNHooks{
 
 		mallocHooks[N-1] = &mallocHook<N-1>;
 		freeHooks[N-1] = &freeHook<N-1>;
+		reallocHooks[N-1] = &reallocHook<N-1>;
+		callocHooks[N-1] = &callocHook<N-1>;
 	}
 };
  
@@ -254,6 +314,44 @@ BOOL CALLBACK enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVO
 		nUsedFreeHooks++;
 	}
 
+	// Hook reallocs.
+	if(strcmp(symbolInfo->Name, "realloc") == 0){
+		if(nUsedReallocHooks >= numHooks){
+			InjectLog("All realloc hooks used up!\r\n");
+			return true;
+		}
+		internal_itoa(nUsedReallocHooks, logBuffer, 10);
+		InjectLog("Hooking realloc from module ", moduleName, " into realloc hook num ", logBuffer, ".\r\n");
+		if(MH_CreateHook((void*)symbolInfo->Address, reallocHooks[nUsedReallocHooks],  (void **)&originalReallocs[nUsedReallocHooks]) != MH_OK){
+			InjectLog("Create hook realloc failed!\r\n");
+		}
+
+		if(MH_EnableHook((void*)symbolInfo->Address) != MH_OK){
+			InjectLog("Enable realloc hook failed!\r\n");
+		}
+
+		nUsedReallocHooks++;
+	}
+
+	// Hook Callocs.
+	if(strcmp(symbolInfo->Name, "Calloc") == 0){
+		if(nUsedCallocHooks >= numHooks){
+			InjectLog("All Calloc hooks used up!\r\n");
+			return true;
+		}
+		internal_itoa(nUsedCallocHooks, logBuffer, 10);
+		InjectLog("Hooking Calloc from module ", moduleName, " into Calloc hook num ", logBuffer, ".\r\n");
+		if(MH_CreateHook((void*)symbolInfo->Address, callocHooks[nUsedCallocHooks],  (void **)&originalCallocs[nUsedCallocHooks]) != MH_OK){
+			InjectLog("Create hook Calloc failed!\r\n");
+		}
+
+		if(MH_EnableHook((void*)symbolInfo->Address) != MH_OK){
+			InjectLog("Enable Calloc hook failed!\r\n");
+		}
+
+		nUsedCallocHooks++;
+	}
+
 	return true;
 }
 
@@ -263,8 +361,11 @@ BOOL CALLBACK enumModulesCallback(PCSTR ModuleName, DWORD_PTR BaseOfDll, PVOID U
 	if(strcmp(ModuleName, "msvcrt") == 0) 
 		return true;
 
-	SymEnumSymbols(GetCurrentProcess(), BaseOfDll, "malloc", enumSymbolsCallback, (void*)ModuleName);
-	SymEnumSymbols(GetCurrentProcess(), BaseOfDll, "free", enumSymbolsCallback, (void*)ModuleName);
+	HANDLE currentProcess = GetCurrentProcess();
+	SymEnumSymbols(currentProcess, BaseOfDll, "malloc", enumSymbolsCallback, (void*)ModuleName);
+	SymEnumSymbols(currentProcess, BaseOfDll, "free", enumSymbolsCallback, (void*)ModuleName);
+	SymEnumSymbols(currentProcess, BaseOfDll, "realloc", enumSymbolsCallback, (void*)ModuleName);
+	SymEnumSymbols(currentProcess, BaseOfDll, "calloc", enumSymbolsCallback, (void*)ModuleName);
 	return true;
 }
 
@@ -349,6 +450,8 @@ void setupHeapProfiling(){
 
 	nUsedMallocHooks = 0;
 	nUsedFreeHooks = 0;
+	nUsedReallocHooks = 0;
+	nUsedCallocHooks = 0;
 
 	tlsIndex = TlsAlloc();
 	TlsSetValue(tlsIndex, (LPVOID)0);
@@ -369,7 +472,7 @@ void setupHeapProfiling(){
 	void* p = HeapAlloc(GetProcessHeap(), 0, sizeof(HeapProfiler));
 	heapProfiler = new(p) HeapProfiler();
 
-	// Trawl though loaded modules and hook any mallocs and frees we find.
+	// Trawl though loaded modules and hook any mallocs, frees, reallocs and callocs we find.
 	SymEnumerateModules(GetCurrentProcess(), enumModulesCallback, NULL);
 
 	// Spawn and a new thread which prints allocation report every 10 seconds.
