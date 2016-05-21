@@ -357,10 +357,6 @@ BOOL CALLBACK enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVO
 
 // Callback which recieves loaded module names which we search for malloc/frees to hook.
 BOOL CALLBACK enumModulesCallback(PCSTR ModuleName, DWORD_PTR BaseOfDll, PVOID UserContext){
-	// TODO: Hooking msvcrt causes problems with cleaning up stdio - avoid for now.
-	if(strcmp(ModuleName, "msvcrt") == 0) 
-		return true;
-
 	HANDLE currentProcess = GetCurrentProcess();
 	SymEnumSymbols(currentProcess, BaseOfDll, "malloc", enumSymbolsCallback, (void*)ModuleName);
 	SymEnumSymbols(currentProcess, BaseOfDll, "free", enumSymbolsCallback, (void*)ModuleName);
