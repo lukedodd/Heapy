@@ -1,10 +1,134 @@
 #include <Windows.h>
 #include <Psapi.h>
+#include <winternl.h>
 
 #include <iostream>
 #include <vector>
 #include <string>
 #include <algorithm>
+
+typedef NTSTATUS (NTAPI *pfnNtQueryInformationProcess)(
+	IN  HANDLE ProcessHandle,
+	IN  PROCESSINFOCLASS ProcessInformationClass,
+	OUT PVOID ProcessInformation,
+	IN  ULONG ProcessInformationLength,
+	OUT PULONG ReturnLength    OPTIONAL
+	);
+
+void* GetEntryPointAddress(HANDLE hProcess){
+	HMODULE hModule = GetModuleHandleA("ntdll.dll");
+	pfnNtQueryInformationProcess pNtQueryInformationProcess
+		= (pfnNtQueryInformationProcess)GetProcAddress(hModule, "NtQueryInformationProcess");
+
+	if (pNtQueryInformationProcess != NULL){
+		PROCESS_BASIC_INFORMATION pbi;
+		memset(&pbi, 0, sizeof(pbi));
+
+		NTSTATUS status = pNtQueryInformationProcess(hProcess, ProcessBasicInformation, &pbi, sizeof(pbi), NULL);
+		if (NT_SUCCESS(status)){
+			PEB* pPeb = pbi.PebBaseAddress;
+
+			void* pImageBaseAddress;
+			SIZE_T NumOfBytesRead;
+			if (ReadProcessMemory(hProcess,
+								  &pPeb->Reserved3[1],
+								  &pImageBaseAddress,
+								  sizeof(pImageBaseAddress),
+								  &NumOfBytesRead) == 0
+				|| NumOfBytesRead != sizeof(pImageBaseAddress))
+				return NULL;
+
+			LONG e_lfanew;
+			if (ReadProcessMemory(hProcess,
+								  (char*)pImageBaseAddress + offsetof(IMAGE_DOS_HEADER, e_lfanew),
+								  &e_lfanew,
+								  sizeof(e_lfanew),
+								  &NumOfBytesRead) == 0
+				|| NumOfBytesRead != sizeof(e_lfanew))
+				return NULL;
+
+			IMAGE_NT_HEADERS* pImageHeaders = (IMAGE_NT_HEADERS*)((char*)pImageBaseAddress + e_lfanew);
+
+			DWORD EntryPointOffset;
+			if (ReadProcessMemory(hProcess,
+								  (char*)pImageHeaders + offsetof(IMAGE_NT_HEADERS, OptionalHeader.AddressOfEntryPoint),
+								  &EntryPointOffset,
+								  sizeof(EntryPointOffset),
+								  &NumOfBytesRead) == 0
+				|| NumOfBytesRead != sizeof(EntryPointOffset))
+				return NULL;
+
+			void* pEntryPointAddress = (char*)pImageBaseAddress + EntryPointOffset;
+			return pEntryPointAddress;
+		}
+	}
+	return NULL;
+}
+
+bool PatchEntryPoint(HANDLE hProcess, void* pEntryPointAddress, unsigned char* pWriteBytes, unsigned char* pOriginalBytes, unsigned int unSize){
+	SIZE_T NumOfBytesRead;
+	if (pOriginalBytes != NULL){
+		if (ReadProcessMemory(hProcess, pEntryPointAddress, pOriginalBytes, unSize, &NumOfBytesRead) == 0
+			|| NumOfBytesRead != unSize)
+		{
+			return false;
+		}
+	}
+	if (WriteProcessMemory(hProcess, pEntryPointAddress, pWriteBytes, unSize, &NumOfBytesRead) == 0
+		|| NumOfBytesRead != unSize){
+		return false;
+	}
+
+	FlushInstructionCache(hProcess, pEntryPointAddress, unSize);
+	return true;
+}
+
+struct ProcessStartContext{
+	void* pEntryPointAddress;
+	unsigned char OldOpCodes[2];
+};
+
+bool WaitForProcessStart(HANDLE hProcess, HANDLE hThread, ProcessStartContext* pProcessContext){
+	void* pEntryPointAddress = GetEntryPointAddress(hProcess);
+	if (pEntryPointAddress == NULL)
+		return false;
+
+	unsigned char OldBytes[2];
+	unsigned char NewBytes[2] = { 0xEB, 0xFE };
+	if (!PatchEntryPoint(hProcess, pEntryPointAddress, NewBytes, OldBytes, 2))
+		return false;
+
+	pProcessContext->pEntryPointAddress = pEntryPointAddress;
+	memcpy(pProcessContext->OldOpCodes, OldBytes, 2);
+
+	ResumeThread(hThread);
+
+	CONTEXT context;
+	memset(&context, 0, sizeof(context));
+#ifdef _WIN64
+	for (unsigned int i = 0; i < 50 && context.Rip != (decltype(context.Rip))pEntryPointAddress; ++i){
+#else
+	for (unsigned int i = 0; i < 50 && context.Eip != (decltype(context.Eip))pEntryPointAddress; ++i){
+#endif
+		// patience.
+		Sleep(100);
+ 
+		// read the thread context
+		context.ContextFlags = CONTEXT_CONTROL;
+		GetThreadContext(hThread, &context);
+	}
+
+	return true;
+}
+
+bool ResumeProcessStart(HANDLE hProcess, HANDLE hThread, ProcessStartContext* pProcessContext){
+	SuspendThread(hThread);
+	if (!PatchEntryPoint(hProcess, pProcessContext->pEntryPointAddress, pProcessContext->OldOpCodes, NULL, 2))
+		return false;
+
+	ResumeThread(hThread);
+	return true;
+}
 
 // Inject a DLL into the target process by creating a new thread at LoadLibrary
 // Waits for injected thread to finish and returns its exit code.
@@ -111,7 +235,11 @@ extern "C" int main(int argc, char* argv[]){
 		std::cerr << "Error creating process " << injectionTarget << std::endl;
 		return -1;
 	}
-		
+
+	ProcessStartContext ProcessContext;
+	if (!WaitForProcessStart(pi.hProcess, pi.hThread, &ProcessContext))
+		return -1;
+
 	// Inject our dll.
 	// This method returns only when injection thread returns.
 	try{
@@ -131,7 +259,7 @@ extern "C" int main(int argc, char* argv[]){
 	}
 	
 	// Once the injection thread has returned it is safe to resume the main thread.
-	ResumeThread(pi.hThread);
+	ResumeProcessStart(pi.hProcess, pi.hThread, &ProcessContext);
 
 	// Wait for the target application to exit. 
 	// This doesn't matter to much, but makes heapy nicer to use in test scripts.
