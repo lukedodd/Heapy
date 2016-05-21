@@ -210,7 +210,10 @@ extern "C" int main(int argc, char* argv[]){
 	GetModuleFileNameA(NULL, exePath, MAX_PATH );
 	std::string dllPath = getDirectoryOfFile(std::string(exePath)) + "\\" + heapyInjectDllName;
 
-	std::string commandLine = injectionTarget;
+	std::string commandLine;
+	commandLine += "\"";
+	commandLine += injectionTarget;
+	commandLine += "\"";
 	for(int i = 2; i < argc; ++i){
 		commandLine += " " + std::string(argv[i]);
 	}
@@ -218,7 +221,7 @@ extern "C" int main(int argc, char* argv[]){
 	// Start our new process with a suspended main thread.
 	std::cout << "Starting process with heap profiling enabled..." << std::endl;
 	std::cout << "Target exe path: " << injectionTarget << std::endl;
-	std::cout << "Target execommand line: " << commandLine;
+	std::cout << "Target execommand line: " << commandLine << std::endl;
 	std::cout << "Dll to inject: " << dllPath << std::endl;
 
 
@@ -229,9 +232,10 @@ extern "C" int main(int argc, char* argv[]){
 
 	// CreatePRocessA can modify input arg so do this to be safe.
 	std::vector<char> commandLineMutable(commandLine.begin(), commandLine.end()); 
+	commandLineMutable.push_back('\0');
 
 	if(CreateProcessA(NULL, commandLineMutable.data(), NULL, NULL, 0, flags, NULL, 
-		             (LPSTR)".", &si, &pi) == 0){
+					  NULL, &si, &pi) == 0){
 		std::cerr << "Error creating process " << injectionTarget << std::endl;
 		return -1;
 	}
@@ -257,7 +261,7 @@ extern "C" int main(int argc, char* argv[]){
 		TerminateProcess(pi.hProcess, 0);
 		return -1;
 	}
-	
+
 	// Once the injection thread has returned it is safe to resume the main thread.
 	ResumeProcessStart(pi.hProcess, pi.hThread, &ProcessContext);
 
