@@ -7,18 +7,19 @@ It lets you see what parts of an application are allocating the most memory.
 
 Heapy supports 32 and 64 bit applications written in C/C++. You do not need to modify your application in any way to use Heapy.
 
-Heapy will hook and profile any `malloc` and `free` functions it can find. This will in turn cause `new` and `delete` to be profiled too (at least on MSVC `new` and `delete` call `malloc` and `free`.)
+Heapy will hook and profile any `malloc`, `realloc`, `calloc` and `free` functions it can find. This will in turn cause `new` and `delete` to be profiled too (at least on MSVC `new` and `delete` call `malloc` and `free`.)
 
 Download
 --------
 
-You can download the latest release of heapy [here.](http://lukedodd.com/projects/Heapy%20Version%200.1.zip)
+You can download the latest Luke Dodd's offical release of heapy [here.](http://lukedodd.com/projects/Heapy%20Version%200.1.zip)
 
 
 Build
 -----
 
-Simply clone this repository and build the `Heapy.sln` in Visual Studio 2013. More recent versions of visual studio should work, older versions will not.
+Simply clone this repository and build the `Heapy.sln` in Visual Studio 2010. More recent versions of visual studio should work, older versions will not.
+To build with more recent version, the solution need to be adjusted to be use the same version of MinHook project.
 
 Be sure to select the correct configuration for your needs: a release Win32 or x64 configuration depending on whether you want to profile 32 or 64 bit applications.
 
