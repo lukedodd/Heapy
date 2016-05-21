@@ -119,19 +119,94 @@ void  __cdecl freeHook(void * p){
 
 // Template recursion to init a hook table.
 template<int N> struct InitNHooks{
-    static void initHook(){
-        InitNHooks<N-1>::initHook();  // Compile time recursion. 
+	static void initHook(){
+		InitNHooks<N-1>::initHook();  // Compile time recursion. 
 
 		mallocHooks[N-1] = &mallocHook<N-1>;
 		freeHooks[N-1] = &freeHook<N-1>;
-    }
+	}
 };
  
 template<> struct InitNHooks<0>{
-    static void initHook(){
+	static void initHook(){
 		// stop the recursion
-    }
+	}
 };
+
+// Internal function to reverse string buffer
+static void internal_reverse(char str[], int length){
+	int start = 0;
+	int end = length -1;
+	while (start < end){
+		char c = str[start];
+		str[start] = str[end];
+		str[end] = c;
+
+		start++;
+		end--;
+	}
+}
+
+// Internal itoa()
+static char* internal_itoa(__int64 num, char* str, int base){
+	int i = 0;
+	bool isNegative = false;
+ 
+	// Handle 0 explicitely, otherwise empty string is printed for 0
+	if (num == 0){
+		str[i++] = '0';
+		str[i] = '\0';
+		return str;
+	}
+ 
+	// In standard itoa(), negative numbers are handled only with 
+	// base 10. Otherwise numbers are considered unsigned.
+	if (num < 0 && base == 10){
+		isNegative = true;
+		num = -num;
+	}
+ 
+	// Process individual digits
+	while (num != 0){
+		int rem = num % base;
+		str[i++] = (rem > 9)? (rem-10) + 'a' : rem + '0';
+		num = num/base;
+	}
+ 
+	// If number is negative, append '-'
+	if (isNegative)
+		str[i++] = '-';
+
+	str[i] = '\0'; // Append string terminator
+
+	// Reverse the string
+	internal_reverse(str, i);
+
+	return str;
+}
+
+// Internal function to write inject log to InjectLog.txt
+void InjectLog(const char* szStr1, const char* szStr2=NULL, const char* szStr3=NULL, const char* szStr4=NULL, const char* szStr5=NULL){
+	HANDLE hFile = CreateFileA("InjectLog.txt", GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hFile != INVALID_HANDLE_VALUE){
+		LARGE_INTEGER lEndOfFilePointer;
+		LARGE_INTEGER lTemp;
+		lTemp.QuadPart = 0;
+		SetFilePointerEx(hFile, lTemp, &lEndOfFilePointer, FILE_END);
+
+		DWORD dwByteWritten;
+		WriteFile(hFile, szStr1, strlen(szStr1), &dwByteWritten, NULL);
+		if (szStr2 != NULL)
+			WriteFile(hFile, szStr2, strlen(szStr2), &dwByteWritten, NULL);
+		if (szStr3 != NULL)
+			WriteFile(hFile, szStr3, strlen(szStr3), &dwByteWritten, NULL);
+		if (szStr4 != NULL)
+			WriteFile(hFile, szStr4, strlen(szStr4), &dwByteWritten, NULL);
+		if (szStr5 != NULL)
+			WriteFile(hFile, szStr5, strlen(szStr5), &dwByteWritten, NULL);
+		CloseHandle(hFile);
+	}
+}
 
 // Callback which recieves addresses for mallocs/frees which we hook.
 BOOL CALLBACK enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVOID userContext){
@@ -139,20 +214,22 @@ BOOL CALLBACK enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVO
 	PreventSelfProfile preventSelfProfile;
 
 	PCSTR moduleName = (PCSTR)userContext;
-	
+	char logBuffer[30];
+
 	// Hook mallocs.
 	if(strcmp(symbolInfo->Name, "malloc") == 0){
 		if(nUsedMallocHooks >= numHooks){
-			printf("All malloc hooks used up!\n");
+			InjectLog("All malloc hooks used up!\r\n");
 			return true;
 		}
-		printf("Hooking malloc from module %s into malloc hook num %d.\n", moduleName, nUsedMallocHooks);
+		internal_itoa(nUsedMallocHooks, logBuffer, 10);
+		InjectLog("Hooking malloc from module ", moduleName, " into malloc hook num ", logBuffer, ".\r\n");
 		if(MH_CreateHook((void*)symbolInfo->Address, mallocHooks[nUsedMallocHooks],  (void **)&originalMallocs[nUsedMallocHooks]) != MH_OK){
-			printf("Create hook malloc failed!\n");
+			InjectLog("Create hook malloc failed!\r\n");
 		}
 
 		if(MH_EnableHook((void*)symbolInfo->Address) != MH_OK){
-			printf("Enable malloc hook failed!\n");
+			InjectLog("Enable malloc hook failed!\r\n");
 		}
 
 		nUsedMallocHooks++;
@@ -161,16 +238,17 @@ BOOL CALLBACK enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVO
 	// Hook frees.
 	if(strcmp(symbolInfo->Name, "free") == 0){
 		if(nUsedFreeHooks >= numHooks){
-			printf("All free hooks used up!\n");
+			InjectLog("All free hooks used up!\r\n");
 			return true;
 		}
-		printf("Hooking free from module %s into free hook num %d.\n", moduleName, nUsedFreeHooks);
+		internal_itoa(nUsedFreeHooks, logBuffer, 10);
+		InjectLog("Hooking free from module ", moduleName, " into free hook num ", logBuffer, ".\r\n");
 		if(MH_CreateHook((void*)symbolInfo->Address, freeHooks[nUsedFreeHooks],  (void **)&originalFrees[nUsedFreeHooks]) != MH_OK){
-			printf("Create hook free failed!\n");
+			InjectLog("Create hook free failed!\r\n");
 		}
 
 		if(MH_EnableHook((void*)symbolInfo->Address) != MH_OK){
-			printf("Enable free failed!\n");
+			InjectLog("Enable free failed!\r\n");
 		}
 
 		nUsedFreeHooks++;
@@ -265,9 +343,9 @@ int heapProfileReportThread(){
 }
 
 void setupHeapProfiling(){
-	// We use printfs thoughout injection becasue it's just safer/less troublesome
-	// than iostreams for this sort of low-level/hacky/threaded work.
-	printf("Injecting library...\n");
+	// We use InjectLog() thoughout injection becasue it's just safer/less troublesome
+	// than printf/iostreams for this sort of low-level/hacky/threaded work.
+	InjectLog("Injecting library...\r\n");
 
 	nUsedMallocHooks = 0;
 	nUsedFreeHooks = 0;
@@ -284,7 +362,7 @@ void setupHeapProfiling(){
 
 	// Init dbghelp framework.
 	if(!SymInitialize(GetCurrentProcess(), NULL, true))
-		printf("SymInitialize failed\n");
+		InjectLog("SymInitialize failed\n");
 
 	// Yes this leaks - cleauing it up at application exit has zero real benefit.
 	// Might be able to clean it up on CatchExit but I don't see the point.
