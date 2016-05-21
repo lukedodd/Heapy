@@ -139,13 +139,13 @@ DWORD LoadLibraryInjection(HANDLE proc, const char *dllName){
 	LPVOID RemoteString, LoadLibAddy;
 	LoadLibAddy = (LPVOID)GetProcAddress(GetModuleHandleA("kernel32.dll"), "LoadLibraryA");
 
-	RemoteString = (LPVOID)VirtualAllocEx(proc, NULL, strlen(dllName), MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+	RemoteString = (LPVOID)VirtualAllocEx(proc, NULL, strlen(dllName)+1, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 	if(RemoteString == NULL){
 		CloseHandle(proc); // Close the process handle.
 		throw std::runtime_error("LoadLibraryInjection: Error on VirtualAllocEx.");
 	}
 
-	if(WriteProcessMemory(proc, (LPVOID)RemoteString, dllName,strlen(dllName), NULL) == 0){
+	if(WriteProcessMemory(proc, (LPVOID)RemoteString, dllName,strlen(dllName)+1, NULL) == 0){
 		VirtualFreeEx(proc, RemoteString, 0, MEM_RELEASE); // Free the memory we were going to use.
 		CloseHandle(proc); // Close the process handle.
 		throw std::runtime_error("LoadLibraryInjection: Error on WriteProcessMemeory.");
@@ -153,7 +153,7 @@ DWORD LoadLibraryInjection(HANDLE proc, const char *dllName){
 
 	HANDLE hThread;
 
-	if((hThread = CreateRemoteThread(proc, NULL, NULL, (LPTHREAD_START_ROUTINE)LoadLibAddy, (LPVOID)RemoteString, NULL, NULL)) == NULL){
+	if((hThread = CreateRemoteThread(proc, NULL, 0, (LPTHREAD_START_ROUTINE)LoadLibAddy, (LPVOID)RemoteString, 0, NULL)) == NULL){
 		VirtualFreeEx(proc, RemoteString, 0, MEM_RELEASE); // Free the memory we were going to use.
 		CloseHandle(proc); // Close the process handle.
 		throw std::runtime_error("LoadLibraryInjection: Error on CreateRemoteThread.");
