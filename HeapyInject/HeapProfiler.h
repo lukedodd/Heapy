@@ -5,7 +5,7 @@
 #include <set>
 #include <Windows.h>
 
-const int backtraceSize = 64;
+const int backtraceSize = 62;
 typedef unsigned long StackHash;
 
 struct StackTrace{
