@@ -134,10 +134,23 @@ void * __cdecl reallocHook(void* memblock, size_t size){
 
 		p = originalReallocs[N](memblock, size);
 		lastError = GetLastError();
-		if (size == 0 || memblock == NULL || p == NULL){
-			// do nothing
-			// size == 0 -> call free()
+		if (memblock == NULL){
 			// memblock == NULL -> call malloc()
+			if(preventSelfProfile.shouldProfile()){
+				StackTrace trace;
+				trace.trace();
+				heapProfiler->malloc(p, size, trace);
+			}
+		}
+		else if (size == 0){
+			// size == 0 -> call free()
+			if(preventSelfProfile.shouldProfile()){
+				StackTrace trace;
+				trace.trace();
+				heapProfiler->free(memblock, trace);
+			}
+		}
+		else if (p == NULL){
 			// p == NULL -> no memory, memblock not touched
 		}
 		else {
