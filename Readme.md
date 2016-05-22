@@ -19,7 +19,6 @@ Build
 -----
 
 Simply clone this repository and build the `Heapy.sln` in Visual Studio 2010. More recent versions of visual studio should work, older versions will not.
-To build with more recent version, the solution need to be adjusted to be use the same version of MinHook project.
 
 Be sure to select the correct configuration for your needs: a release Win32 or x64 configuration depending on whether you want to profile 32 or 64 bit applications.
 
