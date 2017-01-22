@@ -98,7 +98,7 @@ extern "C" int main(int argc, char* argv[]){
 	// Start our new process with a suspended main thread.
 	std::cout << "Starting process with heap profiling enabled..." << std::endl;
 	std::cout << "Target exe path: " << injectionTarget << std::endl;
-	std::cout << "Target execommand line: " << commandLine;
+	std::cout << "Target execommand line: " << commandLine << std::endl;
 	std::cout << "Dll to inject: " << dllPath << std::endl;
 
 
