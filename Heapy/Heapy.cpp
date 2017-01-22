@@ -109,6 +109,7 @@ extern "C" int main(int argc, char* argv[]){
 
 	// CreatePRocessA can modify input arg so do this to be safe.
 	std::vector<char> commandLineMutable(commandLine.begin(), commandLine.end()); 
+	commandLineMutable.push_back(0);
 
 	if(CreateProcessA(NULL, commandLineMutable.data(), NULL, NULL, 0, flags, NULL, 
 		             (LPSTR)".", &si, &pi) == 0){
