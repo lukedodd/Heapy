@@ -77,7 +77,7 @@ void  __cdecl freeHook(void * p){
 	originalFrees[N](p);
 	if(preventSelfProfile.shouldProfile()){
 		StackTrace trace;
-		trace.trace();
+		//trace.trace();
 		heapProfiler->free(p, trace);
 	}
 }
