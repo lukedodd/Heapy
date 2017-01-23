@@ -12,7 +12,13 @@ StackTrace::StackTrace() : hash(0){
 }
 
 void StackTrace::trace(){
-	CaptureStackBackTrace(0, backtraceSize, backtrace, &hash);
+	int framesCnt = CaptureStackBackTrace(0, backtraceSize, backtrace, 0);
+	// Compute simple polynomial hash of the stack trace.
+	// Note: CaptureStackBackTrace returns plain sum of all pointers as BackTraceHash.
+	const size_t BASE = sizeof(size_t) > 4 ? 11400714819323198485ULL : 2654435769U;
+	hash = 0;
+	for (int i = 0; i < framesCnt; i++)
+		hash = hash * BASE + (size_t)backtrace[i];
 }
 
 void StackTrace::print(std::ostream &stream) const {

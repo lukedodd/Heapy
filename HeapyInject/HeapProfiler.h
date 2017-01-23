@@ -6,7 +6,7 @@
 #include <mutex>
 
 const int backtraceSize = 64;
-typedef unsigned long StackHash;
+typedef size_t StackHash;
 
 struct StackTrace{
 	void *backtrace[backtraceSize];
