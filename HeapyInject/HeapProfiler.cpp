@@ -60,16 +60,23 @@ void StackTrace::print(std::ostream &stream) const {
 void HeapProfiler::malloc(void *ptr, size_t size, const StackTrace &trace){
 	std::lock_guard<std::mutex> lk(mutex);
 
+	if (ptrs.find(ptr) != ptrs.end())
+		return;   //two buffers at same address!
+
 	// Locate or create this stacktrace in the allocations map.
 	if(stackTraces.find(trace.hash) == stackTraces.end()){
-		stackTraces[trace.hash].trace = trace;
+		auto &stack = stackTraces[trace.hash];
+		stack.trace = trace;
+		stack.totalSize = 0;
 	}
 
 	// Store the size for this allocation this stacktraces allocation map.
-	stackTraces[trace.hash].allocations[ptr] = size;
+	stackTraces[trace.hash].totalSize += size;
 
 	// Store the stracktrace hash of this allocation in the pointers map.
-	ptrs[ptr] = trace.hash;
+	auto &ptrInfo = ptrs[ptr];
+	ptrInfo.size = size;
+	ptrInfo.stack = trace.hash;
 }
 
 void HeapProfiler::free(void *ptr, const StackTrace &trace){
@@ -79,8 +86,8 @@ void HeapProfiler::free(void *ptr, const StackTrace &trace){
 	// allocating stack traces map.
 	auto it = ptrs.find(ptr);
 	if(it != ptrs.end()){
-		StackHash stackHash = it->second;
-		stackTraces[stackHash].allocations.erase(ptr); 
+		const PointerInfo &info = it->second;
+		stackTraces[info.stack].totalSize -= info.size;
 		ptrs.erase(it);
 	}else{
 		// Do anything with wild pointer frees?
@@ -91,14 +98,8 @@ void HeapProfiler::getAllocationSiteReport(std::vector<std::pair<StackTrace, siz
 	std::lock_guard<std::mutex> lk(mutex);
 	allocs.clear();
 
-	// For each allocation point.
-	for(auto &traceInfo : stackTraces){
-		// Sum up the size of all the allocations made.
-		size_t sumOfAlloced = 0;
-		for(auto &alloc : traceInfo.second.allocations)
-			sumOfAlloced += alloc.second;
-
-		// Add to alloation site report.
-		allocs.push_back(std::make_pair(traceInfo.second.trace, sumOfAlloced));
+	for(auto it = stackTraces.begin(); it != stackTraces.end(); it++){
+		const auto &info = it->second;
+		allocs.push_back(std::make_pair(info.trace, info.totalSize));
 	}
 }

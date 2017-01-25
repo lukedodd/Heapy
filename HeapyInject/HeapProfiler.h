@@ -27,11 +27,16 @@ public:
 	void getAllocationSiteReport(std::vector<std::pair<StackTrace, size_t>> &allocs);
 private:
 	std::mutex mutex;
-	struct TraceInfo{
+	struct CallStackInfo {
 		StackTrace trace;
-		std::unordered_map<void *, size_t> allocations;
+		size_t totalSize;
 	};
-	std::unordered_map<StackHash, TraceInfo> stackTraces;
-	std::unordered_map<void*, StackHash> ptrs;
+	struct PointerInfo {
+		StackHash stack;
+		size_t size;
+	};
+
+	std::unordered_map<StackHash, CallStackInfo> stackTraces;
+	std::unordered_map<void*, PointerInfo> ptrs;
 
 };
