@@ -98,7 +98,7 @@ extern "C" int main(int argc, char* argv[]){
 	// Start our new process with a suspended main thread.
 	std::cout << "Starting process with heap profiling enabled..." << std::endl;
 	std::cout << "Target exe path: " << injectionTarget << std::endl;
-	std::cout << "Target execommand line: " << commandLine;
+	std::cout << "Target execommand line: " << commandLine << std::endl;
 	std::cout << "Dll to inject: " << dllPath << std::endl;
 
 
@@ -109,6 +109,7 @@ extern "C" int main(int argc, char* argv[]){
 
 	// CreatePRocessA can modify input arg so do this to be safe.
 	std::vector<char> commandLineMutable(commandLine.begin(), commandLine.end()); 
+	commandLineMutable.push_back(0);
 
 	if(CreateProcessA(NULL, commandLineMutable.data(), NULL, NULL, 0, flags, NULL, 
 		             (LPSTR)".", &si, &pi) == 0){
