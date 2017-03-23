@@ -12,7 +12,7 @@ Heapy will hook and profile any `malloc` and `free` functions it can find. This 
 Download
 --------
 
-You can download the latest release of heapy [here.](http://lukedodd.com/projects/Heapy%20Version%200.1.zip)
+You can download the latest release of heapy [here.](https://github.com/lukedodd/Heapy/releases)
 
 
 Build
