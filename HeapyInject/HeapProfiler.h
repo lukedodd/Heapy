@@ -6,7 +6,7 @@
 #include <Windows.h>
 
 const int backtraceSize = 62;
-typedef unsigned long StackHash;
+typedef size_t StackHash;
 
 struct StackTrace{
 	void *backtrace[backtraceSize];
@@ -195,13 +195,16 @@ public:
 	void getAllocationSiteReport(std::vector<std::pair<StackTrace, size_t>> &allocs);
 private:
 	HANDLE mutex;
-	typedef std::unordered_map<void *, size_t, std::hash<void*>, std::equal_to<void*>, HeapAllocator<std::pair<const void*, size_t> > > TraceInfoAllocCollection_t;
-	struct TraceInfo{
+	struct CallStackInfo {
 		StackTrace trace;
-		TraceInfoAllocCollection_t allocations;
+		size_t totalSize;
 	};
-	typedef std::unordered_map<StackHash, TraceInfo, std::hash<StackHash>, std::equal_to<StackHash>, HeapAllocator<std::pair<const StackHash, TraceInfo> > > StackTraceCollection_t;
+	struct PointerInfo {
+		StackHash stack;
+		size_t size;
+	};
+	typedef std::unordered_map<StackHash, CallStackInfo, std::hash<StackHash>, std::equal_to<StackHash>, HeapAllocator<std::pair<const StackHash, CallStackInfo> > > StackTraceCollection_t;
 	StackTraceCollection_t stackTraces;
-	typedef std::unordered_map<void*, StackHash, std::hash<void*>, std::equal_to<void*>, HeapAllocator<std::pair<const void*, StackHash> > > PtrCollection_t;
+	typedef std::unordered_map<void*, PointerInfo, std::hash<void*>, std::equal_to<void*>, HeapAllocator<std::pair<const void*, PointerInfo> > > PtrCollection_t;
 	PtrCollection_t ptrs;
 };

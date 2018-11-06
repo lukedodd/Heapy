@@ -47,3 +47,5 @@ _ReSharper*/
 [Bb]uild/
 
 dist/
+*.VC.db
+*.VC.opendb

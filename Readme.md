@@ -12,7 +12,7 @@ Heapy will hook and profile any `malloc`, `realloc`, `calloc` and `free` functio
 Download
 --------
 
-You can download the latest Luke Dodd's offical release of heapy [here.](http://lukedodd.com/projects/Heapy%20Version%200.1.zip)
+You can download the latest Luke Dodd's offical release of Heapy at [here.](https://github.com/lukedodd/Heapy/releases)
 
 
 Build
@@ -29,10 +29,10 @@ Usage
 Once Heapy is built the executables are put into the Release directory. To profile an application simply run Heapy.exe with the first argument as the path to the exe you wish to profile. Subsequent arguments are passed to the target application. Make sure that the debug database (`.pdb` file) is in the same directory as your target application so that you get symbol information in your stack traces. You can profile release builds but profiling debug or unoptimised builds gives the nicest stack traces.
 
 ```
-Heapy_x64.exe C:\Windows\SysWOW64\notepad.exe test.txt
+Heapy_x64.exe C:\Windows\System32\notepad.exe test.txt
 ```
 
-Remember to call `Heapy_x64.exe` to profile 64 bit applications and `Heapy_Win32.exe` to profile 32 bit applications. 
+The above examples assumes you have 64 bit windows. Remember to call `Heapy_x64.exe` to profile 64 bit applications and `Heapy_Win32.exe` to profile 32 bit applications. 
 
 Results
 -------

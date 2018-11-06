@@ -22,7 +22,13 @@ StackTrace::StackTrace() : hash(0){
 }
 
 void StackTrace::trace(){
-	CaptureStackBackTrace(0, backtraceSize, backtrace, &hash);
+	int framesCnt = CaptureStackBackTrace(0, backtraceSize, backtrace, 0);
+	// Compute simple polynomial hash of the stack trace.
+	// Note: CaptureStackBackTrace returns plain sum of all pointers as BackTraceHash.
+	const size_t BASE = sizeof(size_t) > 4 ? 11400714819323198485ULL : 2654435769U;
+	hash = 0;
+	for (int i = 0; i < framesCnt; i++)
+		hash = hash * BASE + (size_t)backtrace[i];
 }
 
 void StackTrace::print(std::ostream &stream) const {
@@ -73,16 +79,27 @@ HeapProfiler::~HeapProfiler()
 void HeapProfiler::malloc(void *ptr, size_t size, const StackTrace &trace){
 	lock_guard lk(mutex);
 
+	if (ptrs.find(ptr) != ptrs.end())
+	{
+		//two buffers at same address!
+		//heap overflow?
+		return;
+	}
+
 	// Locate or create this stacktrace in the allocations map.
 	if(stackTraces.find(trace.hash) == stackTraces.end()){
-		stackTraces[trace.hash].trace = trace;
+		CallStackInfo &stack = stackTraces[trace.hash];
+		stack.trace = trace;
+		stack.totalSize = 0;
 	}
 
 	// Store the size for this allocation this stacktraces allocation map.
-	stackTraces[trace.hash].allocations[ptr] = size;
+	stackTraces[trace.hash].totalSize += size;
 
 	// Store the stracktrace hash of this allocation in the pointers map.
-	ptrs[ptr] = trace.hash;
+	PointerInfo &ptrInfo = ptrs[ptr];
+	ptrInfo.size = size;
+	ptrInfo.stack = trace.hash;
 }
 
 void HeapProfiler::free(void *ptr, const StackTrace &trace){
@@ -92,8 +109,8 @@ void HeapProfiler::free(void *ptr, const StackTrace &trace){
 	// allocating stack traces map.
 	auto it = ptrs.find(ptr);
 	if(it != ptrs.end()){
-		StackHash stackHash = it->second;
-		stackTraces[stackHash].allocations.erase(ptr); 
+		const PointerInfo &info = it->second;
+		stackTraces[info.stack].totalSize -= info.size;
 		ptrs.erase(it);
 	}else{
 		// Do anything with wild pointer frees?
@@ -105,17 +122,8 @@ void HeapProfiler::getAllocationSiteReport(std::vector<std::pair<StackTrace, siz
 	allocs.clear();
 
 	typedef StackTraceCollection_t::iterator StackTraceIterator;
-	typedef TraceInfoAllocCollection_t::iterator AllocationIterator;
-	// For each allocation point.
-	for (StackTraceIterator iter = stackTraces.begin(); iter != stackTraces.end(); ++iter){
-		std::pair<const StackHash, TraceInfo>& traceInfo = *iter;
-		// Sum up the size of all the allocations made.
-		size_t sumOfAlloced = 0;
-		for (AllocationIterator allocIter = traceInfo.second.allocations.begin(); 
-			allocIter != traceInfo.second.allocations.end(); ++allocIter)
-			sumOfAlloced += allocIter->second;
-
-		// Add to alloation site report.
-		allocs.push_back(std::make_pair(traceInfo.second.trace, sumOfAlloced));
+	for(StackTraceIterator it = stackTraces.begin(); it != stackTraces.end(); it++){
+		const CallStackInfo &info = it->second;
+		allocs.push_back(std::make_pair(info.trace, info.totalSize));
 	}
 }

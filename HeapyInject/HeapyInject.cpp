@@ -117,7 +117,7 @@ void  __cdecl freeHook(void * p){
 		lastError = GetLastError();
 		if(preventSelfProfile.shouldProfile()){
 			StackTrace trace;
-			trace.trace();
+			//trace.trace();
 			heapProfiler->free(p, trace);
 		}
 	}
@@ -146,7 +146,7 @@ void * __cdecl reallocHook(void* memblock, size_t size){
 			// size == 0 -> call free()
 			if(preventSelfProfile.shouldProfile()){
 				StackTrace trace;
-				trace.trace();
+				//trace.trace();
 				heapProfiler->free(memblock, trace);
 			}
 		}
@@ -156,7 +156,7 @@ void * __cdecl reallocHook(void* memblock, size_t size){
 		else {
 			if(preventSelfProfile.shouldProfile()){
 				StackTrace trace;
-				trace.trace();
+				//trace.trace();
 				heapProfiler->free(memblock, trace);
 				heapProfiler->malloc(p, size, trace);
 			}
