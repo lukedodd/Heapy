@@ -1,13 +1,11 @@
 Heapy
 =====
 
-Heapy is a very simple heap profiler (or memory profiler) for windows applications.
+Heapy, a very simple heap profiler (or memory profiler), supports 32 and 64 bit windows applications written in C/C++ without modifying your application. 
 
 It lets you see what parts of an application are allocating the most memory.
 
-Heapy supports 32 and 64 bit applications written in C/C++. You do not need to modify your application in any way to use Heapy.
-
-Heapy will hook and profile any `malloc` and `free` functions it can find. This will in turn cause `new` and `delete` to be profiled too (at least on MSVC `new` and `delete` call `malloc` and `free`.)
+Heapy will hook and profile any `malloc` and `free` functions it can find, which will in turn cause `new` and `delete` to be profiled too (at least on MSVC `new` and `delete` call `malloc` and `free`).
 
 Download
 --------
