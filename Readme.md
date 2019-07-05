@@ -16,7 +16,7 @@ You can download the latest release of heapy [here.](https://github.com/lukedodd
 Build
 -----
 
-Simply clone this repository and build the `Heapy.sln` in Visual Studio 2013. More recent versions of visual studio should work, older versions will not.
+Simply clone this repository and build the `Heapy.sln` in Visual Studio 2017. More recent versions of visual studio should work, older versions will not.
 
 Be sure to select the correct configuration for your needs: a release Win32 or x64 configuration depending on whether you want to profile 32 or 64 bit applications.
 
