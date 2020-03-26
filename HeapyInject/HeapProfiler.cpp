@@ -7,6 +7,16 @@
 #include <algorithm>
 #include <iomanip>
 
+struct lock_guard{
+	HANDLE m_hMutex;
+	lock_guard(HANDLE hMutex) : m_hMutex(hMutex){
+		WaitForSingleObject(hMutex, INFINITE);
+	}
+	~lock_guard(){
+		ReleaseMutex(m_hMutex);
+	}
+};
+
 StackTrace::StackTrace() : hash(0){
 	memset(backtrace, 0, sizeof(void*)*backtraceSize);
 }
@@ -57,15 +67,28 @@ void StackTrace::print(std::ostream &stream) const {
 	}
 }
 
+HeapProfiler::HeapProfiler() : mutex(CreateMutex(NULL, FALSE, NULL)), stackTraces(), ptrs(){
+}
+
+HeapProfiler::~HeapProfiler()
+{
+	if (mutex != NULL)
+		CloseHandle(mutex);
+}
+
 void HeapProfiler::malloc(void *ptr, size_t size, const StackTrace &trace){
-	std::lock_guard<std::mutex> lk(mutex);
+	lock_guard lk(mutex);
 
 	if (ptrs.find(ptr) != ptrs.end())
-		return;   //two buffers at same address!
+	{
+		//two buffers at same address!
+		//heap overflow?
+		return;
+	}
 
 	// Locate or create this stacktrace in the allocations map.
 	if(stackTraces.find(trace.hash) == stackTraces.end()){
-		auto &stack = stackTraces[trace.hash];
+		CallStackInfo &stack = stackTraces[trace.hash];
 		stack.trace = trace;
 		stack.totalSize = 0;
 	}
@@ -74,13 +97,13 @@ void HeapProfiler::malloc(void *ptr, size_t size, const StackTrace &trace){
 	stackTraces[trace.hash].totalSize += size;
 
 	// Store the stracktrace hash of this allocation in the pointers map.
-	auto &ptrInfo = ptrs[ptr];
+	PointerInfo &ptrInfo = ptrs[ptr];
 	ptrInfo.size = size;
 	ptrInfo.stack = trace.hash;
 }
 
 void HeapProfiler::free(void *ptr, const StackTrace &trace){
-	std::lock_guard<std::mutex> lk(mutex);
+	lock_guard lk(mutex);
 
 	// On a free we remove the pointer from the ptrs map and the
 	// allocating stack traces map.
@@ -95,11 +118,11 @@ void HeapProfiler::free(void *ptr, const StackTrace &trace){
 }
 
 void HeapProfiler::getAllocationSiteReport(std::vector<std::pair<StackTrace, size_t>> &allocs){
-	std::lock_guard<std::mutex> lk(mutex);
+	lock_guard lk(mutex);
 	allocs.clear();
 
 	for(auto it = stackTraces.begin(); it != stackTraces.end(); it++){
-		const auto &info = it->second;
+		const CallStackInfo &info = it->second;
 		allocs.push_back(std::make_pair(info.trace, info.totalSize));
 	}
 }
