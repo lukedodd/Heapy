@@ -3,6 +3,7 @@
 #include <vector>
 #include <unordered_map>
 #include <set>
+#include <mutex>
 #include <Windows.h>
 
 const int backtraceSize = 62;
@@ -17,6 +18,29 @@ struct StackTrace{
 	void print(std::ostream &stream) const;
 };
 
+
+// We define our own Mutex type since we can't use any standard library features inside parts of heapy.
+struct Mutex{
+	CRITICAL_SECTION criticalSection;
+	Mutex(){
+		InitializeCriticalSectionAndSpinCount(&criticalSection, 400);
+	}
+	~Mutex(){
+		DeleteCriticalSection(&criticalSection);
+	}
+};
+
+struct lock_guard{
+	Mutex& mutex;
+	lock_guard(Mutex& mutex) : mutex(mutex){
+		EnterCriticalSection(&mutex.criticalSection);
+	}
+	~lock_guard(){
+		LeaveCriticalSection(&mutex.criticalSection);
+	}
+};
+
+
 class HeapProfiler{
 public:
 	HeapProfiler();
@@ -29,7 +53,8 @@ public:
 	// of memory currently allocated by each site.
 	void getAllocationSiteReport(std::vector<std::pair<StackTrace, size_t>> &allocs);
 private:
-	HANDLE mutex;
+	Mutex mutex;
+
 	struct CallStackInfo {
 		StackTrace trace;
 		size_t totalSize;

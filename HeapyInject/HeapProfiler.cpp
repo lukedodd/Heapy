@@ -6,16 +6,8 @@
 
 #include <algorithm>
 #include <iomanip>
+#include <thread>
 
-struct lock_guard{
-	HANDLE m_hMutex;
-	lock_guard(HANDLE hMutex) : m_hMutex(hMutex){
-		WaitForSingleObject(hMutex, INFINITE);
-	}
-	~lock_guard(){
-		ReleaseMutex(m_hMutex);
-	}
-};
 
 StackTrace::StackTrace() : hash(0){
 	memset(backtrace, 0, sizeof(void*)*backtraceSize);
@@ -67,13 +59,12 @@ void StackTrace::print(std::ostream &stream) const {
 	}
 }
 
-HeapProfiler::HeapProfiler() : mutex(CreateMutex(NULL, FALSE, NULL)), stackTraces(), ptrs(){
+HeapProfiler::HeapProfiler(){
+
 }
 
-HeapProfiler::~HeapProfiler()
-{
-	if (mutex != NULL)
-		CloseHandle(mutex);
+HeapProfiler::~HeapProfiler(){
+
 }
 
 void HeapProfiler::malloc(void *ptr, size_t size, const StackTrace &trace){

@@ -17,27 +17,6 @@ typedef void (__cdecl *PtrFree)(void *);
 typedef void* (__cdecl *PtrRealloc)(void *, size_t);
 typedef void * (__cdecl *PtrCalloc)(size_t, size_t);
 
-struct Mutex
-{
-	HANDLE m_hMutex;
-	Mutex(): m_hMutex(CreateMutex(NULL, FALSE, NULL)){
-	}
-	~Mutex(){
-		if (m_hMutex != NULL)
-			CloseHandle(m_hMutex);
-	}
-};
-
-struct lock_guard
-{
-	Mutex& m_Mutex;
-	lock_guard(Mutex& hMutex) : m_Mutex(hMutex){
-		WaitForSingleObject(m_Mutex.m_hMutex, INFINITE);
-	}
-	~lock_guard(){
-		ReleaseMutex(m_Mutex.m_hMutex);
-	}
-};
 
 // Hook tables. (Lot's of static data, but it's the only way to do this.)
 const int numHooks = 128;
