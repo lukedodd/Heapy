@@ -82,10 +82,13 @@ void HeapProfiler::malloc(void *ptr, size_t size, const StackTrace &trace){
 		CallStackInfo &stack = stackTraces[trace.hash];
 		stack.trace = trace;
 		stack.totalSize = 0;
+		stack.n = 0;
 	}
 
 	// Store the size for this allocation this stacktraces allocation map.
-	stackTraces[trace.hash].totalSize += size;
+	auto& callStackInfo = stackTraces[trace.hash];
+	callStackInfo.totalSize += size;
+	callStackInfo.n++;
 
 	// Store the stracktrace hash of this allocation in the pointers map.
 	PointerInfo &ptrInfo = ptrs[ptr];
@@ -108,12 +111,13 @@ void HeapProfiler::free(void *ptr, const StackTrace &trace){
 	}
 }
 
-void HeapProfiler::getAllocationSiteReport(std::vector<std::pair<StackTrace, size_t>> &allocs){
+void HeapProfiler::getAllocationSiteReport(std::vector<CallStackInfo> &allocs){
 	lock_guard lk(mutex);
-	allocs.clear();
 
-	for(auto it = stackTraces.begin(); it != stackTraces.end(); it++){
-		const CallStackInfo &info = it->second;
-		allocs.push_back(std::make_pair(info.trace, info.totalSize));
+	allocs.resize(stackTraces.size());
+
+	for(auto& p : stackTraces){
+		allocs.emplace_back(p.second);
 	}
+
 }

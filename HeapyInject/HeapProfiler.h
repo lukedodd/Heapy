@@ -49,17 +49,19 @@ public:
 	void malloc(void *ptr, size_t size, const StackTrace &trace);
 	void free(void *ptr, const StackTrace &trace);
 
-	// Return a list of allocation sites (a particular stack trace) and the amount
-	// of memory currently allocated by each site.
-	void getAllocationSiteReport(std::vector<std::pair<StackTrace, size_t>> &allocs);
-private:
-	Mutex mutex;
-
 	struct CallStackInfo {
 		StackTrace trace;
 		size_t totalSize;
+		size_t n;
 	};
-	struct PointerInfo {
+
+	// Return a list of allocation sites (a particular stack trace) and the amount
+	// of memory currently allocated by each site.
+	void getAllocationSiteReport(std::vector<CallStackInfo> &allocs);
+private:
+	Mutex mutex;
+
+		struct PointerInfo {
 		StackHash stack;
 		size_t size;
 	};

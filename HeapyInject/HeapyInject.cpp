@@ -357,15 +357,18 @@ BOOL CALLBACK enumModulesCallback(PCSTR ModuleName, DWORD_PTR BaseOfDll, PVOID U
 	return true;
 }
 
-void printTopAllocationReport(int numToPrint){
-
-	std::vector<std::pair<StackTrace, size_t>> allocsSortedBySize;
+void printTopAllocationReport(int numToPrint, bool profileNumberOfAllocations){
+	std::vector<HeapProfiler::CallStackInfo> allocsSortedBySize;
 	heapProfiler->getAllocationSiteReport(allocsSortedBySize);
+
+	auto size = [profileNumberOfAllocations](const HeapProfiler::CallStackInfo &i) {
+		return profileNumberOfAllocations ? i.n : i.totalSize;
+	};
 
 	// Sort retured allocation sites by size of memory allocated, descending.
 	std::sort(allocsSortedBySize.begin(), allocsSortedBySize.end(), 
-		[](const std::pair<StackTrace, size_t> &a, const std::pair<StackTrace, size_t> &b){
-			return a.second < b.second;
+		[size](const HeapProfiler::CallStackInfo &a, const HeapProfiler::CallStackInfo &b){
+			return size(a)< size(b);
 		}
 	);
 	
@@ -380,26 +383,37 @@ void printTopAllocationReport(int numToPrint){
 	double bytesInAMegaByte = 1024*1024;
 	for(size_t i = (size_t)(std::max)(int64_t(allocsSortedBySize.size())-numToPrint, int64_t(0)); i < allocsSortedBySize.size(); ++i){
 
-		if(allocsSortedBySize[i].second == 0)
+		if(size(allocsSortedBySize[i]) == 0)
 			continue;
 
-		stream << "Alloc size " << precision << allocsSortedBySize[i].second/bytesInAMegaByte << "Mb, stack trace: \n";
-		allocsSortedBySize[i].first.print(stream);
+		if(!profileNumberOfAllocations) 
+			stream << "Alloc size " << precision << size(allocsSortedBySize[i])/bytesInAMegaByte << "Mb, stack trace: \n";
+		else
+			stream << "Number of allocs " << size(allocsSortedBySize[i]) << ", stack trace: \n";
+
+		allocsSortedBySize[i].trace.print(stream);
+
 		stream << "\n";
 
-		totalPrintedAllocSize += allocsSortedBySize[i].second;
+		totalPrintedAllocSize += size(allocsSortedBySize[i]);
 		numPrintedAllocations++;
 	}
 
 	size_t totalAlloctaions = std::accumulate(allocsSortedBySize.begin(), allocsSortedBySize.end(), size_t(0),
-		[](size_t a,  const std::pair<StackTrace, size_t> &b){
-			return a + b.second;
+		[size](size_t a,  const HeapProfiler::CallStackInfo &b){
+			return a + size(b);
 		}
 	);
 
-	stream << "Top " << numPrintedAllocations << " allocations: " << precision <<  totalPrintedAllocSize/bytesInAMegaByte << "Mb\n";
-	stream << "Total allocations: " << precision << totalAlloctaions/bytesInAMegaByte << "Mb" << 
-		" (difference between total and top " << numPrintedAllocations << " allocations : " << (totalAlloctaions - totalPrintedAllocSize)/bytesInAMegaByte << "Mb)\n\n";
+	if (!profileNumberOfAllocations) {
+		stream << "Top " << numPrintedAllocations << " allocations: " << precision << totalPrintedAllocSize/bytesInAMegaByte << "Mb\n";
+		stream << "Total allocations: " << precision << totalAlloctaions / bytesInAMegaByte << "Mb" <<
+			" (difference between total and top " << numPrintedAllocations << " allocations : " << (totalAlloctaions - totalPrintedAllocSize)/bytesInAMegaByte << "Mb)\n\n";
+	}else {
+		stream << "Top " << numPrintedAllocations << " allocations: " << precision << totalPrintedAllocSize<< "\n";
+		stream << "Total number of allocations: " <<  totalAlloctaions  <<
+			" (difference between total and top " << numPrintedAllocations << " number of allocations : " << (totalAlloctaions - totalPrintedAllocSize) << ")\n\n";
+	}
 }
 
 // Do an allocation report on exit.
@@ -418,7 +432,7 @@ void printTopAllocationReport(int numToPrint){
 struct CatchExit{
 	~CatchExit(){
 		PreventSelfProfile p;
-		printTopAllocationReport(25);
+		printTopAllocationReport(25, false);
 	}
 };
 CatchExit catchExit;
@@ -427,7 +441,7 @@ int heapProfileReportThread(){
 	PreventEverProfilingThisThread();
 	while(true){
 		Sleep(10000); 
-		printTopAllocationReport(25);
+		printTopAllocationReport(25, false);
 	}
 }
 
