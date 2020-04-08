@@ -20,7 +20,7 @@ struct lock_guard{
 StackTrace::StackTrace() : hash(0){
 	memset(backtrace, 0, sizeof(void*)*backtraceSize);
 }
-
+#pragma optimize("", off)
 void StackTrace::trace(){
 	int framesCnt = CaptureStackBackTrace(0, backtraceSize, backtrace, 0);
 	// Compute simple polynomial hash of the stack trace.
@@ -30,7 +30,7 @@ void StackTrace::trace(){
 	for (int i = 0; i < framesCnt; i++)
 		hash = hash * BASE + (size_t)backtrace[i];
 }
-
+#pragma optimize("", on)
 void StackTrace::print(std::ostream &stream) const {
 	HANDLE process = GetCurrentProcess();
 
@@ -40,8 +40,8 @@ void StackTrace::print(std::ostream &stream) const {
 	symbol->SizeOfStruct = sizeof(IMAGEHLP_SYMBOL);
 	symbol->MaxNameLength = MAXSYMBOLNAME - 1;
 
-	// Print out stack trace. Skip the first frame (that's our hook function.)
-	for(size_t i = 1; i < backtraceSize; ++i){ 
+	// Print out stack trace. Skip first frame (that's our trace function) and second frmae (that's our hook function)
+	for(size_t i = 2; i < backtraceSize; ++i){ 
 		if(backtrace[i]){
 			// Output stack frame symbols if available.
 			if(SymGetSymFromAddr(process, (DWORD64)backtrace[i], 0, symbol)){
