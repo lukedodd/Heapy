@@ -347,19 +347,19 @@ BOOL CALLBACK enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVO
 	}
 
 	// Hook Callocs.
-	if(strcmp(symbolInfo->Name, "Calloc") == 0){
+	if(strcmp(symbolInfo->Name, "calloc") == 0){
 		if(nUsedCallocHooks >= numHooks){
-			InjectLog("All Calloc hooks used up!\r\n");
+			InjectLog("All calloc hooks used up!\r\n");
 			return true;
 		}
 		internal_itoa(nUsedCallocHooks, logBuffer, 10);
-		InjectLog("Hooking Calloc from module ", moduleName, " into Calloc hook num ", logBuffer, ".\r\n");
+		InjectLog("Hooking calloc from module ", moduleName, " into calloc hook num ", logBuffer, ".\r\n");
 		if(MH_CreateHook((void*)symbolInfo->Address, callocHooks[nUsedCallocHooks],  (void **)&originalCallocs[nUsedCallocHooks]) != MH_OK){
-			InjectLog("Create hook Calloc failed!\r\n");
+			InjectLog("Create hook calloc failed!\r\n");
 		}
 
 		if(MH_EnableHook((void*)symbolInfo->Address) != MH_OK){
-			InjectLog("Enable Calloc hook failed!\r\n");
+			InjectLog("Enable calloc hook failed!\r\n");
 		}
 
 		nUsedCallocHooks++;
