@@ -63,16 +63,16 @@ DWORD tlsIndex;
 
 struct PreventSelfProfile{
 	PreventSelfProfile(){
-		int depthCount = (int)TlsGetValue(tlsIndex);
+		intptr_t depthCount = (intptr_t)TlsGetValue(tlsIndex);
 		TlsSetValue(tlsIndex, (LPVOID)(depthCount+1));
 	}
 	~PreventSelfProfile(){
-		int depthCount = (int)TlsGetValue(tlsIndex);
+		intptr_t depthCount = (intptr_t)TlsGetValue(tlsIndex);
 		TlsSetValue(tlsIndex, (LPVOID)(depthCount-1));
 	}
 
 	inline bool shouldProfile(){
-		int depthCount = (int)TlsGetValue(tlsIndex);
+		intptr_t depthCount = (intptr_t)TlsGetValue(tlsIndex);
 		return depthCount <= 1;
 	}
 private:
@@ -81,7 +81,7 @@ private:
 };
 
 void PreventEverProfilingThisThread(){
-	int depthCount = (int)TlsGetValue(tlsIndex);
+	intptr_t depthCount = (intptr_t)TlsGetValue(tlsIndex);
 	TlsSetValue(tlsIndex, (LPVOID)(depthCount+1));
 }
 
