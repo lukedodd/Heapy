@@ -18,32 +18,17 @@ struct StackTrace{
 };
 
 template<class _Ty>
-	struct HeapAllocator_base
-	{	// base class for generic allocators
-	typedef _Ty value_type;
-	};
-
-		// TEMPLATE CLASS _Allocator_base<const _Ty>
-template<class _Ty>
-	struct HeapAllocator_base<const _Ty>
-	{	// base class for generic allocators for const _Ty
-	typedef _Ty value_type;
-	};
-
-template<class _Ty>
-struct HeapAllocator : HeapAllocator_base<_Ty>
+struct HeapAllocator
 {
 public:
-	typedef HeapAllocator_base<_Ty> _Mybase;
-	typedef typename _Mybase::value_type value_type;
+	typedef _Ty value_type;
+	typedef value_type  *pointer;
+	typedef value_type & reference;
+	typedef const value_type  *const_pointer;
+	typedef const value_type & const_reference;
 
-	typedef value_type _FARQ *pointer;
-	typedef value_type _FARQ& reference;
-	typedef const value_type _FARQ *const_pointer;
-	typedef const value_type _FARQ& const_reference;
-
-	typedef _SIZT size_type;
-	typedef _PDFT difference_type;
+	typedef size_t size_type;
+	typedef ptrdiff_t difference_type;
 
 	template<class _Other>
 		struct rebind
@@ -82,25 +67,23 @@ public:
 
 	void deallocate(pointer _Ptr, size_type)
 		{	// deallocate object at _Ptr, ignore size
-		//::operator delete(_Ptr);
 			HeapFree(GetProcessHeap(), 0, _Ptr);
 		}
 
 	pointer allocate(size_type _Count)
 		{	// allocate array of _Count elements
-		//return (_Allocate(_Count, (pointer)0));
 		void *_Ptr = 0;
 
 		if (_Count <= 0)
 			_Count = 0;
-		else if (((_SIZT)(-1) / sizeof (_Ty) < _Count)
+		else if (((size_t)(-1) / sizeof (_Ty) < _Count)
 			|| (_Ptr = HeapAlloc(GetProcessHeap(), 0, _Count * sizeof (_Ty))) == 0)
-			_THROW_NCEE(std::bad_alloc, 0);
+			throw std::bad_alloc();
 
-		return ((_Ty _FARQ *)_Ptr);
+		return ((_Ty  *)_Ptr);
 		}
 
-	pointer allocate(size_type _Count, const void _FARQ *)
+	pointer allocate(size_type _Count, const void  *)
 		{	// allocate array of _Count elements, ignore hint
 		return (allocate(_Count));
 		}
@@ -112,13 +95,13 @@ public:
 
 	void construct(pointer _Ptr, _Ty&& _Val)
 		{	// construct object at _Ptr with value _Val
-		::new ((void _FARQ *)_Ptr) _Ty(_STD forward<_Ty>(_Val));
+		::new ((void  *)_Ptr) _Ty(std:: forward<_Ty>(_Val));
 		}
 
 	template<class _Other>
 		void construct(pointer _Ptr, _Other&& _Val)
 		{	// construct object at _Ptr with value _Val
-		::new ((void _FARQ *)_Ptr) _Ty(_STD forward<_Other>(_Val));
+		::new ((void  *)_Ptr) _Ty(std:: forward<_Other>(_Val));
 		}
 
 	void destroy(pointer _Ptr)
@@ -126,46 +109,12 @@ public:
 		_Destroy(_Ptr);
 		}
 
-	_SIZT max_size() const _THROW0()
+	size_t max_size() const _THROW0()
 		{	// estimate maximum array size
-		_SIZT _Count = (_SIZT)(-1) / sizeof (_Ty);
+		size_t _Count = (size_t)(-1) / sizeof (_Ty);
 		return (0 < _Count ? _Count : 1);
 		}
 };
-
-template<> class HeapAllocator<void>
-	{	// generic _ALLOCATOR for type void
-public:
-	typedef void _Ty;
-	typedef _Ty _FARQ *pointer;
-	typedef const _Ty _FARQ *const_pointer;
-	typedef _Ty value_type;
-
-	template<class _Other>
-		struct rebind
-		{	// convert this type to an _ALLOCATOR<_Other>
-		typedef HeapAllocator<_Other> other;
-		};
-
-	HeapAllocator() _THROW0()
-		{	// construct default allocator (do nothing)
-		}
-
-	HeapAllocator(const HeapAllocator<_Ty>&) _THROW0()
-		{	// construct by copying (do nothing)
-		}
-
-	template<class _Other>
-		HeapAllocator(const HeapAllocator<_Other>&) _THROW0()
-		{	// construct from related allocator (do nothing)
-		}
-
-	template<class _Other>
-		HeapAllocator<_Ty>& operator=(const HeapAllocator<_Other>&)
-		{	// assign from a related allocator (do nothing)
-		return (*this);
-		}
-	};
 
 template<class _Ty,
 	class _Other> inline
