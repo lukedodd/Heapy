@@ -22,10 +22,11 @@ struct HeapAllocator
 {
 public:
 	typedef _Ty value_type;
-	typedef value_type  *pointer;
-	typedef value_type & reference;
-	typedef const value_type  *const_pointer;
-	typedef const value_type & const_reference;
+#if _MSC_VER <= 1700
+	typedef value_type* pointer;
+	typedef value_type& reference;
+	typedef const value_type* const_pointer;
+	typedef const value_type& const_reference;
 
 	typedef size_t size_type;
 	typedef ptrdiff_t difference_type;
@@ -45,45 +46,46 @@ public:
 		{	// return address of nonmutable _Val
 		return ((const_pointer) &(char&)_Val);
 		}
-
+#endif
 	HeapAllocator() _THROW0()
 		{	// construct default allocator (do nothing)
 		}
-
+#if _MSC_VER <= 1700
 	HeapAllocator(const HeapAllocator<_Ty>&) _THROW0()
 		{	// construct by copying (do nothing)
 		}
-
+#endif
 	template<class _Other>
 		HeapAllocator(const HeapAllocator<_Other>&) _THROW0()
 		{	// construct from a related allocator (do nothing)
 		}
-
+#if _MSC_VER <= 1700
 	template<class _Other>
 		HeapAllocator<_Ty>& operator=(const HeapAllocator<_Other>&)
 		{	// assign from a related allocator (do nothing)
 		return (*this);
 		}
-
-	void deallocate(pointer _Ptr, size_type)
+#endif
+	void deallocate(value_type* _Ptr, size_t)
 		{	// deallocate object at _Ptr, ignore size
 			HeapFree(GetProcessHeap(), 0, _Ptr);
 		}
 
-	pointer allocate(size_type _Count)
+	value_type* allocate(size_t _Count)
 		{	// allocate array of _Count elements
 		void *_Ptr = 0;
 
 		if (_Count <= 0)
 			_Count = 0;
-		else if (((size_t)(-1) / sizeof (_Ty) < _Count)
-			|| (_Ptr = HeapAlloc(GetProcessHeap(), 0, _Count * sizeof (_Ty))) == 0)
+		else if ((size_t)(-1) / sizeof (_Ty) < _Count)
+			throw std::bad_array_new_length();
+		else if ((_Ptr = HeapAlloc(GetProcessHeap(), 0, _Count * sizeof (_Ty))) == 0)
 			throw std::bad_alloc();
 
-		return ((_Ty  *)_Ptr);
+		return ((_Ty*)_Ptr);
 		}
-
-	pointer allocate(size_type _Count, const void  *)
+#if _MSC_VER <= 1700
+	pointer allocate(size_type _Count, const void*)
 		{	// allocate array of _Count elements, ignore hint
 		return (allocate(_Count));
 		}
@@ -95,13 +97,13 @@ public:
 
 	void construct(pointer _Ptr, _Ty&& _Val)
 		{	// construct object at _Ptr with value _Val
-		::new ((void  *)_Ptr) _Ty(std:: forward<_Ty>(_Val));
+		::new ((void*)_Ptr) _Ty(std::forward<_Ty>(_Val));
 		}
 
 	template<class _Other>
 		void construct(pointer _Ptr, _Other&& _Val)
 		{	// construct object at _Ptr with value _Val
-		::new ((void  *)_Ptr) _Ty(std:: forward<_Other>(_Val));
+		::new ((void*)_Ptr) _Ty(std::forward<_Other>(_Val));
 		}
 
 	void destroy(pointer _Ptr)
@@ -114,6 +116,7 @@ public:
 		size_t _Count = (size_t)(-1) / sizeof (_Ty);
 		return (0 < _Count ? _Count : 1);
 		}
+#endif
 };
 
 template<class _Ty,
