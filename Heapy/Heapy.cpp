@@ -6,7 +6,6 @@
 #include <vector>
 #include <string>
 #include <algorithm>
-#include <codecvt>
 
 typedef NTSTATUS (NTAPI *pfnNtQueryInformationProcess)(
 	IN  HANDLE ProcessHandle,
@@ -136,17 +135,17 @@ bool ResumeProcessStart(HANDLE hProcess, HANDLE hThread, ProcessStartContext* pP
 // 
 // Originally from :
 // http://www.codeproject.com/Articles/2082/API-hooking-revealed 
-DWORD LoadLibraryInjection(HANDLE proc, const char *dllName){
+DWORD LoadLibraryInjection(HANDLE proc, const wchar_t *dllName){
 	LPVOID RemoteString, LoadLibAddy;
-	LoadLibAddy = (LPVOID)GetProcAddress(GetModuleHandleA("kernel32.dll"), "LoadLibraryA");
+	LoadLibAddy = (LPVOID)GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "LoadLibraryW");
 
-	RemoteString = (LPVOID)VirtualAllocEx(proc, NULL, strlen(dllName)+1, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
+	RemoteString = (LPVOID)VirtualAllocEx(proc, NULL, (wcslen(dllName)+1)*sizeof(wchar_t), MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
 	if(RemoteString == NULL){
 		CloseHandle(proc); // Close the process handle.
 		throw std::runtime_error("LoadLibraryInjection: Error on VirtualAllocEx.");
 	}
 
-	if(WriteProcessMemory(proc, (LPVOID)RemoteString, dllName,strlen(dllName)+1, NULL) == 0){
+	if(WriteProcessMemory(proc, (LPVOID)RemoteString, dllName, (wcslen(dllName)+1)*sizeof(wchar_t), NULL) == 0){
 		VirtualFreeEx(proc, RemoteString, 0, MEM_RELEASE); // Free the memory we were going to use.
 		CloseHandle(proc); // Close the process handle.
 		throw std::runtime_error("LoadLibraryInjection: Error on WriteProcessMemeory.");
@@ -267,13 +266,6 @@ void ArgvQuote(const std::wstring& Argument, std::wstring& CommandLine, bool For
 	}
 }
 
-std::string ws2s(const std::wstring& wstr){
-	using convert_typeX = std::codecvt_utf8<wchar_t>;
-	std::wstring_convert<convert_typeX, wchar_t> converterX;
-
-	return converterX.to_bytes(wstr);
-}
-
 extern "C" int main(int argc, char* argv[]){
 	if(argc < 2){
 		std::cout << "No exe specified!\n\n";
@@ -343,7 +335,7 @@ extern "C" int main(int argc, char* argv[]){
 
 	GetStartupInfoW(&si);
 
-	// CreatePRocessA can modify input arg so do this to be safe.
+	// CreateProcessW can modify input arg so do this to be safe.
 	std::vector<wchar_t> commandLineMutable(commandLine.begin(), commandLine.end()); 
 	commandLineMutable.push_back('\0');
 
@@ -363,9 +355,7 @@ extern "C" int main(int argc, char* argv[]){
 	// Inject our dll.
 	// This method returns only when injection thread returns.
 	try{
-		// TODO: We should really upgrade LoadLibraryInjection to handle wstrings...
-		auto dllPathNormalString = ws2s(dllPath);
-		if(!LoadLibraryInjection(pi.hProcess, dllPathNormalString.c_str())){
+		if(!LoadLibraryInjection(pi.hProcess, dllPath.c_str())){
 			throw std::runtime_error("LoadLibrary failed!");
 		}
 	}catch(const std::exception &e){
