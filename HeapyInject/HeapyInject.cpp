@@ -156,7 +156,7 @@ void * __cdecl reallocHook(void* memblock, size_t size){
 		else {
 			if(preventSelfProfile.shouldProfile()){
 				StackTrace trace;
-				//trace.trace();
+				trace.trace();
 				heapProfiler->free(memblock, trace);
 				heapProfiler->malloc(p, size, trace);
 			}
