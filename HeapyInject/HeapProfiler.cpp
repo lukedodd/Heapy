@@ -7,16 +7,6 @@
 #include <algorithm>
 #include <iomanip>
 
-struct lock_guard{
-	HANDLE m_hMutex;
-	lock_guard(HANDLE hMutex) : m_hMutex(hMutex){
-		WaitForSingleObject(hMutex, INFINITE);
-	}
-	~lock_guard(){
-		ReleaseMutex(m_hMutex);
-	}
-};
-
 StackTrace::StackTrace() : hash(0){
 	memset(backtrace, 0, sizeof(void*)*backtraceSize);
 }
@@ -67,13 +57,12 @@ void StackTrace::print(std::ostream &stream) const {
 	}
 }
 
-HeapProfiler::HeapProfiler() : mutex(CreateMutex(NULL, FALSE, NULL)), stackTraces(), ptrs(){
+HeapProfiler::HeapProfiler(){
+
 }
 
-HeapProfiler::~HeapProfiler()
-{
-	if (mutex != NULL)
-		CloseHandle(mutex);
+HeapProfiler::~HeapProfiler(){
+
 }
 
 void HeapProfiler::malloc(void *ptr, size_t size, const StackTrace &trace){
@@ -91,10 +80,13 @@ void HeapProfiler::malloc(void *ptr, size_t size, const StackTrace &trace){
 		CallStackInfo &stack = stackTraces[trace.hash];
 		stack.trace = trace;
 		stack.totalSize = 0;
+		stack.n = 0;
 	}
 
 	// Store the size for this allocation this stacktraces allocation map.
-	stackTraces[trace.hash].totalSize += size;
+	CallStackInfo& callStackInfo = stackTraces[trace.hash];
+	callStackInfo.totalSize += size;
+	callStackInfo.n++;
 
 	// Store the stracktrace hash of this allocation in the pointers map.
 	PointerInfo &ptrInfo = ptrs[ptr];
@@ -117,13 +109,13 @@ void HeapProfiler::free(void *ptr, const StackTrace &trace){
 	}
 }
 
-void HeapProfiler::getAllocationSiteReport(std::vector<std::pair<StackTrace, size_t>> &allocs){
+void HeapProfiler::getAllocationSiteReport(std::vector<CallStackInfo> &allocs){
 	lock_guard lk(mutex);
 	allocs.clear();
-
+	allocs.reserve(stackTraces.size());
 	typedef StackTraceCollection_t::iterator StackTraceIterator;
 	for(StackTraceIterator it = stackTraces.begin(); it != stackTraces.end(); it++){
 		const CallStackInfo &info = it->second;
-		allocs.push_back(std::make_pair(info.trace, info.totalSize));
+		allocs.push_back(info);
 	}
 }
