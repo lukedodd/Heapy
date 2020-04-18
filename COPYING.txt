@@ -17,4 +17,4 @@ The MinHook library is used in this project.
 
 All MinHook files are under libs/MinHook.
 
-The license for MinHook is at  libs/MinHook/Copying.txt.
+The license for MinHook is at  libs/MinHook/LICENSE.txt.

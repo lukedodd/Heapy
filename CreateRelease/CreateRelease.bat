@@ -1,4 +1,4 @@
-call "C:\Program Files (x86)\Microsoft Visual Studio 11.0\VC\bin\vcvars32.bat"
+call "C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\bin\vcvars32.bat"
 devenv ..\Heapy.sln /Rebuild "Release|Win32"
 devenv ..\Heapy.sln /Rebuild "Release|x64"
 

@@ -1,9 +1,6 @@
-#include <stdio.h>
-#include <mutex>
 #include <vector>
 #include <memory>
 #include <numeric>
-#include <thread>
 #include <fstream>
 #include <iomanip>
 #include <algorithm>
@@ -14,36 +11,48 @@
 #include "dbghelp.h"
 #include <tlhelp32.h>
 
+typedef __int64 int64_t;
 typedef void * (__cdecl *PtrMalloc)(size_t);
 typedef void (__cdecl *PtrFree)(void *);
+typedef void* (__cdecl *PtrRealloc)(void *, size_t);
+typedef void * (__cdecl *PtrCalloc)(size_t, size_t);
 
 
 // Hook tables. (Lot's of static data, but it's the only way to do this.)
 const int numHooks = 128;
-std::mutex hookTableMutex;
-int nUsedMallocHooks = 0; 
-int nUsedFreeHooks = 0; 
+Mutex hookTableMutex;
+int nUsedMallocHooks = 0;
+int nUsedFreeHooks = 0;
+int nUsedReallocHooks = 0;
+int nUsedCallocHooks = 0;
 PtrMalloc mallocHooks[numHooks];
 PtrFree freeHooks[numHooks];
+PtrRealloc reallocHooks[numHooks];
+PtrCalloc callocHooks[numHooks];
 PtrMalloc originalMallocs[numHooks];
 PtrFree originalFrees[numHooks];
+PtrRealloc originalReallocs[numHooks];
+PtrCalloc originalCallocs[numHooks];
 // TODO?: Special case for debug build malloc/frees?
 
 HeapProfiler *heapProfiler;
 
 // Mechanism to stop us profiling ourself.
-static __declspec( thread ) int _depthCount = 0; // use thread local count
+DWORD tlsIndex;
 
 struct PreventSelfProfile{
 	PreventSelfProfile(){
-		_depthCount++;
+		intptr_t depthCount = (intptr_t)TlsGetValue(tlsIndex);
+		TlsSetValue(tlsIndex, (LPVOID)(depthCount+1));
 	}
 	~PreventSelfProfile(){
-		_depthCount--;
+		intptr_t depthCount = (intptr_t)TlsGetValue(tlsIndex);
+		TlsSetValue(tlsIndex, (LPVOID)(depthCount-1));
 	}
 
 	inline bool shouldProfile(){
-		return _depthCount <= 1;
+		intptr_t depthCount = (intptr_t)TlsGetValue(tlsIndex);
+		return depthCount <= 1;
 	}
 private:
 	PreventSelfProfile(const PreventSelfProfile&){}
@@ -51,20 +60,27 @@ private:
 };
 
 void PreventEverProfilingThisThread(){
-	_depthCount++;
+	intptr_t depthCount = (intptr_t)TlsGetValue(tlsIndex);
+	TlsSetValue(tlsIndex, (LPVOID)(depthCount+1));
 }
 
 // Malloc hook function. Templated so we can hook many mallocs.
 template <int N>
 void * __cdecl mallocHook(size_t size){
-	PreventSelfProfile preventSelfProfile;
+	void * p;
+	DWORD lastError;
+	{
+		PreventSelfProfile preventSelfProfile;
 
-	void * p = originalMallocs[N](size);
-	if(preventSelfProfile.shouldProfile()){
-		StackTrace trace;
-		trace.trace();
-		heapProfiler->malloc(p, size, trace);
+		p = originalMallocs[N](size);
+		lastError = GetLastError();
+		if(preventSelfProfile.shouldProfile()){
+			StackTrace trace;
+			trace.trace();
+			heapProfiler->malloc(p, size, trace);
+		}
 	}
+	SetLastError(lastError);
 
 	return p;
 }
@@ -72,52 +88,200 @@ void * __cdecl mallocHook(size_t size){
 // Free hook function.
 template <int N>
 void  __cdecl freeHook(void * p){
-	PreventSelfProfile preventSelfProfile;
+	DWORD lastError;
+	{
+		PreventSelfProfile preventSelfProfile;
 
-	originalFrees[N](p);
-	if(preventSelfProfile.shouldProfile()){
-		StackTrace trace;
-		//trace.trace();
-		heapProfiler->free(p, trace);
+		originalFrees[N](p);
+		lastError = GetLastError();
+		if(preventSelfProfile.shouldProfile()){
+			StackTrace trace;
+			//trace.trace();
+			heapProfiler->free(p, trace);
+		}
 	}
+	SetLastError(lastError);
+}
+
+// Realloc hook function. Templated so we can hook many mallocs.
+template <int N>
+void * __cdecl reallocHook(void* memblock, size_t size){
+	void * p;
+	DWORD lastError;
+	{
+		PreventSelfProfile preventSelfProfile;
+
+		p = originalReallocs[N](memblock, size);
+		lastError = GetLastError();
+		if (memblock == NULL){
+			// memblock == NULL -> call malloc()
+			if(preventSelfProfile.shouldProfile()){
+				StackTrace trace;
+				trace.trace();
+				heapProfiler->malloc(p, size, trace);
+			}
+		}
+		else if (size == 0){
+			// size == 0 -> call free()
+			if(preventSelfProfile.shouldProfile()){
+				StackTrace trace;
+				//trace.trace();
+				heapProfiler->free(memblock, trace);
+			}
+		}
+		else if (p == NULL){
+			// p == NULL -> no memory, memblock not touched
+		}
+		else {
+			if(preventSelfProfile.shouldProfile()){
+				StackTrace trace;
+				trace.trace();
+				heapProfiler->free(memblock, trace);
+				heapProfiler->malloc(p, size, trace);
+			}
+		}
+	}
+	SetLastError(lastError);
+
+	return p;
+}
+
+// Calloc hook function. Templated so we can hook many Callocs.
+template <int N>
+void * __cdecl callocHook(size_t num, size_t size){
+	void * p;
+	DWORD lastError;
+	{
+		PreventSelfProfile preventSelfProfile;
+
+		p = originalCallocs[N](num, size);
+		lastError = GetLastError();
+		if(preventSelfProfile.shouldProfile()){
+			StackTrace trace;
+			trace.trace();
+			heapProfiler->malloc(p, num * size, trace);
+		}
+	}
+	SetLastError(lastError);
+
+	return p;
 }
 
 // Template recursion to init a hook table.
 template<int N> struct InitNHooks{
-    static void initHook(){
-        InitNHooks<N-1>::initHook();  // Compile time recursion. 
+	static void initHook(){
+		InitNHooks<N-1>::initHook();  // Compile time recursion. 
 
 		mallocHooks[N-1] = &mallocHook<N-1>;
 		freeHooks[N-1] = &freeHook<N-1>;
-    }
+		reallocHooks[N-1] = &reallocHook<N-1>;
+		callocHooks[N-1] = &callocHook<N-1>;
+	}
 };
  
 template<> struct InitNHooks<0>{
-    static void initHook(){
+	static void initHook(){
 		// stop the recursion
-    }
+	}
 };
+
+// Internal function to reverse string buffer
+static void internal_reverse(char str[], int length){
+	int start = 0;
+	int end = length -1;
+	while (start < end){
+		char c = str[start];
+		str[start] = str[end];
+		str[end] = c;
+
+		start++;
+		end--;
+	}
+}
+
+// Internal itoa()
+static char* internal_itoa(__int64 num, char* str, int base){
+	int i = 0;
+	bool isNegative = false;
+ 
+	// Handle 0 explicitely, otherwise empty string is printed for 0
+	if (num == 0){
+		str[i++] = '0';
+		str[i] = '\0';
+		return str;
+	}
+ 
+	// In standard itoa(), negative numbers are handled only with 
+	// base 10. Otherwise numbers are considered unsigned.
+	if (num < 0 && base == 10){
+		isNegative = true;
+		num = -num;
+	}
+ 
+	// Process individual digits
+	while (num != 0){
+		int rem = num % base;
+		str[i++] = (rem > 9)? (rem-10) + 'a' : rem + '0';
+		num = num/base;
+	}
+ 
+	// If number is negative, append '-'
+	if (isNegative)
+		str[i++] = '-';
+
+	str[i] = '\0'; // Append string terminator
+
+	// Reverse the string
+	internal_reverse(str, i);
+
+	return str;
+}
+
+// Internal function to write inject log to InjectLog.txt
+void InjectLog(const char* szStr1, const char* szStr2=NULL, const char* szStr3=NULL, const char* szStr4=NULL, const char* szStr5=NULL){
+	HANDLE hFile = CreateFileA("InjectLog.txt", GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	if (hFile != INVALID_HANDLE_VALUE){
+		LARGE_INTEGER lEndOfFilePointer;
+		LARGE_INTEGER lTemp;
+		lTemp.QuadPart = 0;
+		SetFilePointerEx(hFile, lTemp, &lEndOfFilePointer, FILE_END);
+
+		DWORD dwByteWritten;
+		WriteFile(hFile, szStr1, strlen(szStr1), &dwByteWritten, NULL);
+		if (szStr2 != NULL)
+			WriteFile(hFile, szStr2, strlen(szStr2), &dwByteWritten, NULL);
+		if (szStr3 != NULL)
+			WriteFile(hFile, szStr3, strlen(szStr3), &dwByteWritten, NULL);
+		if (szStr4 != NULL)
+			WriteFile(hFile, szStr4, strlen(szStr4), &dwByteWritten, NULL);
+		if (szStr5 != NULL)
+			WriteFile(hFile, szStr5, strlen(szStr5), &dwByteWritten, NULL);
+		CloseHandle(hFile);
+	}
+}
 
 // Callback which recieves addresses for mallocs/frees which we hook.
 BOOL CALLBACK enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVOID userContext){
-	std::lock_guard<std::mutex> lk(hookTableMutex);
+	lock_guard lk(hookTableMutex);
 	PreventSelfProfile preventSelfProfile;
 
 	PCSTR moduleName = (PCSTR)userContext;
-	
+	char logBuffer[30];
+
 	// Hook mallocs.
 	if(strcmp(symbolInfo->Name, "malloc") == 0){
 		if(nUsedMallocHooks >= numHooks){
-			printf("All malloc hooks used up!\n");
+			InjectLog("All malloc hooks used up!\r\n");
 			return true;
 		}
-		printf("Hooking malloc from module %s into malloc hook num %d.\n", moduleName, nUsedMallocHooks);
+		internal_itoa(nUsedMallocHooks, logBuffer, 10);
+		InjectLog("Hooking malloc from module ", moduleName, " into malloc hook num ", logBuffer, ".\r\n");
 		if(MH_CreateHook((void*)symbolInfo->Address, mallocHooks[nUsedMallocHooks],  (void **)&originalMallocs[nUsedMallocHooks]) != MH_OK){
-			printf("Create hook malloc failed!\n");
+			InjectLog("Create hook malloc failed!\r\n");
 		}
 
 		if(MH_EnableHook((void*)symbolInfo->Address) != MH_OK){
-			printf("Enable malloc hook failed!\n");
+			InjectLog("Enable malloc hook failed!\r\n");
 		}
 
 		nUsedMallocHooks++;
@@ -126,19 +290,58 @@ BOOL CALLBACK enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVO
 	// Hook frees.
 	if(strcmp(symbolInfo->Name, "free") == 0){
 		if(nUsedFreeHooks >= numHooks){
-			printf("All free hooks used up!\n");
+			InjectLog("All free hooks used up!\r\n");
 			return true;
 		}
-		printf("Hooking free from module %s into free hook num %d.\n", moduleName, nUsedFreeHooks);
+		internal_itoa(nUsedFreeHooks, logBuffer, 10);
+		InjectLog("Hooking free from module ", moduleName, " into free hook num ", logBuffer, ".\r\n");
 		if(MH_CreateHook((void*)symbolInfo->Address, freeHooks[nUsedFreeHooks],  (void **)&originalFrees[nUsedFreeHooks]) != MH_OK){
-			printf("Create hook free failed!\n");
+			InjectLog("Create hook free failed!\r\n");
 		}
 
 		if(MH_EnableHook((void*)symbolInfo->Address) != MH_OK){
-			printf("Enable free failed!\n");
+			InjectLog("Enable free failed!\r\n");
 		}
 
 		nUsedFreeHooks++;
+	}
+
+	// Hook reallocs.
+	if(strcmp(symbolInfo->Name, "realloc") == 0){
+		if(nUsedReallocHooks >= numHooks){
+			InjectLog("All realloc hooks used up!\r\n");
+			return true;
+		}
+		internal_itoa(nUsedReallocHooks, logBuffer, 10);
+		InjectLog("Hooking realloc from module ", moduleName, " into realloc hook num ", logBuffer, ".\r\n");
+		if(MH_CreateHook((void*)symbolInfo->Address, reallocHooks[nUsedReallocHooks],  (void **)&originalReallocs[nUsedReallocHooks]) != MH_OK){
+			InjectLog("Create hook realloc failed!\r\n");
+		}
+
+		if(MH_EnableHook((void*)symbolInfo->Address) != MH_OK){
+			InjectLog("Enable realloc hook failed!\r\n");
+		}
+
+		nUsedReallocHooks++;
+	}
+
+	// Hook Callocs.
+	if(strcmp(symbolInfo->Name, "calloc") == 0){
+		if(nUsedCallocHooks >= numHooks){
+			InjectLog("All calloc hooks used up!\r\n");
+			return true;
+		}
+		internal_itoa(nUsedCallocHooks, logBuffer, 10);
+		InjectLog("Hooking calloc from module ", moduleName, " into calloc hook num ", logBuffer, ".\r\n");
+		if(MH_CreateHook((void*)symbolInfo->Address, callocHooks[nUsedCallocHooks],  (void **)&originalCallocs[nUsedCallocHooks]) != MH_OK){
+			InjectLog("Create hook calloc failed!\r\n");
+		}
+
+		if(MH_EnableHook((void*)symbolInfo->Address) != MH_OK){
+			InjectLog("Enable calloc hook failed!\r\n");
+		}
+
+		nUsedCallocHooks++;
 	}
 
 	return true;
@@ -146,24 +349,26 @@ BOOL CALLBACK enumSymbolsCallback(PSYMBOL_INFO symbolInfo, ULONG symbolSize, PVO
 
 // Callback which recieves loaded module names which we search for malloc/frees to hook.
 BOOL CALLBACK enumModulesCallback(PCSTR ModuleName, DWORD_PTR BaseOfDll, PVOID UserContext){
-	// TODO: Hooking msvcrt causes problems with cleaning up stdio - avoid for now.
-	if(strcmp(ModuleName, "msvcrt") == 0) 
-		return true;
-
-	SymEnumSymbols(GetCurrentProcess(), BaseOfDll, "malloc", enumSymbolsCallback, (void*)ModuleName);
-	SymEnumSymbols(GetCurrentProcess(), BaseOfDll, "free", enumSymbolsCallback, (void*)ModuleName);
+	HANDLE currentProcess = GetCurrentProcess();
+	SymEnumSymbols(currentProcess, BaseOfDll, "malloc", enumSymbolsCallback, (void*)ModuleName);
+	SymEnumSymbols(currentProcess, BaseOfDll, "free", enumSymbolsCallback, (void*)ModuleName);
+	SymEnumSymbols(currentProcess, BaseOfDll, "realloc", enumSymbolsCallback, (void*)ModuleName);
+	SymEnumSymbols(currentProcess, BaseOfDll, "calloc", enumSymbolsCallback, (void*)ModuleName);
 	return true;
 }
 
-void printTopAllocationReport(int numToPrint){
-
-	std::vector<std::pair<StackTrace, size_t>> allocsSortedBySize;
+void printTopAllocationReport(int numToPrint, bool profileNumberOfAllocations){
+	std::vector<HeapProfiler::CallStackInfo> allocsSortedBySize;
 	heapProfiler->getAllocationSiteReport(allocsSortedBySize);
+
+	auto size = [profileNumberOfAllocations](const HeapProfiler::CallStackInfo &i) {
+		return profileNumberOfAllocations ? i.n : i.totalSize;
+	};
 
 	// Sort retured allocation sites by size of memory allocated, descending.
 	std::sort(allocsSortedBySize.begin(), allocsSortedBySize.end(), 
-		[](const std::pair<StackTrace, size_t> &a, const std::pair<StackTrace, size_t> &b){
-			return a.second < b.second;
+		[size](const HeapProfiler::CallStackInfo &a, const HeapProfiler::CallStackInfo &b){
+			return size(a)< size(b);
 		}
 	);
 	
@@ -178,26 +383,37 @@ void printTopAllocationReport(int numToPrint){
 	double bytesInAMegaByte = 1024*1024;
 	for(size_t i = (size_t)(std::max)(int64_t(allocsSortedBySize.size())-numToPrint, int64_t(0)); i < allocsSortedBySize.size(); ++i){
 
-		if(allocsSortedBySize[i].second == 0)
+		if(size(allocsSortedBySize[i]) == 0)
 			continue;
 
-		stream << "Alloc size " << precision << allocsSortedBySize[i].second/bytesInAMegaByte << "Mb, stack trace: \n";
-		allocsSortedBySize[i].first.print(stream);
+		if(!profileNumberOfAllocations) 
+			stream << "Alloc size " << precision << size(allocsSortedBySize[i])/bytesInAMegaByte << "Mb, stack trace: \n";
+		else
+			stream << "Number of allocs " << size(allocsSortedBySize[i]) << ", stack trace: \n";
+
+		allocsSortedBySize[i].trace.print(stream);
+
 		stream << "\n";
 
-		totalPrintedAllocSize += allocsSortedBySize[i].second;
+		totalPrintedAllocSize += size(allocsSortedBySize[i]);
 		numPrintedAllocations++;
 	}
 
 	size_t totalAlloctaions = std::accumulate(allocsSortedBySize.begin(), allocsSortedBySize.end(), size_t(0),
-		[](size_t a,  const std::pair<StackTrace, size_t> &b){
-			return a + b.second;
+		[size](size_t a,  const HeapProfiler::CallStackInfo &b){
+			return a + size(b);
 		}
 	);
 
-	stream << "Top " << numPrintedAllocations << " allocations: " << precision <<  totalPrintedAllocSize/bytesInAMegaByte << "Mb\n";
-	stream << "Total allocations: " << precision << totalAlloctaions/bytesInAMegaByte << "Mb" << 
-		" (difference between total and top " << numPrintedAllocations << " allocations : " << (totalAlloctaions - totalPrintedAllocSize)/bytesInAMegaByte << "Mb)\n\n";
+	if (!profileNumberOfAllocations) {
+		stream << "Top " << numPrintedAllocations << " allocations: " << precision << totalPrintedAllocSize/bytesInAMegaByte << "Mb\n";
+		stream << "Total allocations: " << precision << totalAlloctaions / bytesInAMegaByte << "Mb" <<
+			" (difference between total and top " << numPrintedAllocations << " allocations : " << (totalAlloctaions - totalPrintedAllocSize)/bytesInAMegaByte << "Mb)\n\n";
+	}else {
+		stream << "Top " << numPrintedAllocations << " allocations: " << precision << totalPrintedAllocSize<< "\n";
+		stream << "Total number of allocations: " <<  totalAlloctaions  <<
+			" (difference between total and top " << numPrintedAllocations << " number of allocations : " << (totalAlloctaions - totalPrintedAllocSize) << ")\n\n";
+	}
 }
 
 // Do an allocation report on exit.
@@ -216,7 +432,7 @@ void printTopAllocationReport(int numToPrint){
 struct CatchExit{
 	~CatchExit(){
 		PreventSelfProfile p;
-		printTopAllocationReport(25);
+		printTopAllocationReport(25, false);
 	}
 };
 CatchExit catchExit;
@@ -225,18 +441,22 @@ int heapProfileReportThread(){
 	PreventEverProfilingThisThread();
 	while(true){
 		Sleep(10000); 
-		printTopAllocationReport(25);
+		printTopAllocationReport(25, false);
 	}
 }
 
 void setupHeapProfiling(){
-	// We use printfs thoughout injection becasue it's just safer/less troublesome
-	// than iostreams for this sort of low-level/hacky/threaded work.
-	printf("Injecting library...\n");
+	// We use InjectLog() thoughout injection becasue it's just safer/less troublesome
+	// than printf/iostreams for this sort of low-level/hacky/threaded work.
+	InjectLog("Injecting library...\r\n");
 
 	nUsedMallocHooks = 0;
 	nUsedFreeHooks = 0;
+	nUsedReallocHooks = 0;
+	nUsedCallocHooks = 0;
 
+	tlsIndex = TlsAlloc();
+	TlsSetValue(tlsIndex, (LPVOID)0);
 	PreventEverProfilingThisThread();
 
 	// Create our hook pointer tables using template meta programming fu.
@@ -247,13 +467,14 @@ void setupHeapProfiling(){
 
 	// Init dbghelp framework.
 	if(!SymInitialize(GetCurrentProcess(), NULL, true))
-		printf("SymInitialize failed\n");
+		InjectLog("SymInitialize failed\n");
 
 	// Yes this leaks - cleauing it up at application exit has zero real benefit.
 	// Might be able to clean it up on CatchExit but I don't see the point.
-	heapProfiler = new HeapProfiler(); 
+	void* p = HeapAlloc(GetProcessHeap(), 0, sizeof(HeapProfiler));
+	heapProfiler = new(p) HeapProfiler();
 
-	// Trawl though loaded modules and hook any mallocs and frees we find.
+	// Trawl though loaded modules and hook any mallocs, frees, reallocs and callocs we find.
 	SymEnumerateModules(GetCurrentProcess(), enumModulesCallback, NULL);
 
 	// Spawn and a new thread which prints allocation report every 10 seconds.

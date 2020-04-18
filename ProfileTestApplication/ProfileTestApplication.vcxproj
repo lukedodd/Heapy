@@ -1,5 +1,5 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
       <Configuration>Debug</Configuration>
@@ -21,32 +21,31 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{00772643-280F-44BE-8839-14E06137A705}</ProjectGuid>
     <RootNamespace>ProfileTestApplication</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v100</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v100</PlatformToolset>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v120</PlatformToolset>
+    <PlatformToolset>v100</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v141</PlatformToolset>
+    <PlatformToolset>v100</PlatformToolset>
     <WholeProgramOptimization>true</WholeProgramOptimization>
     <CharacterSet>MultiByte</CharacterSet>
   </PropertyGroup>
@@ -96,10 +95,10 @@ $(SolutionDir)$(Configuration)\Heapy_Win32.exe $(SolutionDir)$(Configuration)\Te
       <GenerateDebugInformation>true</GenerateDebugInformation>
     </Link>
     <CustomBuildStep>
-      <Command>del $(SolutionDir)$(Configuration)\Heapy_Profile.txt
+      <Command>del "$(SolutionDir)$(Configuration)\Heapy_Profile.txt"
 echo Running command: $(SolutionDir)$(Configuration)\Heapy_x64.exe $(SolutionDir)$(Configuration)\TestApplication_x64.exe
 echo ======
-$(SolutionDir)$(Configuration)\Heapy_x64.exe $(SolutionDir)$(Configuration)\TestApplication_x64.exe</Command>
+"$(SolutionDir)$(Configuration)\Heapy_x64.exe" "$(SolutionDir)$(Configuration)\TestApplication_x64.exe"</Command>
       <Outputs>NonExistentFileToPromptRebuild.txt</Outputs>
     </CustomBuildStep>
   </ItemDefinitionGroup>
@@ -150,10 +149,10 @@ $(SolutionDir)$(Configuration)\Heapy_Win32.exe $(SolutionDir)$(Configuration)\Te
       </Command>
     </PreBuildEvent>
     <CustomBuildStep>
-      <Command>del $(SolutionDir)$(Configuration)\Heapy_Profile.txt
+      <Command>del "$(SolutionDir)$(Configuration)\Heapy_Profile.txt"
 echo Running command: $(SolutionDir)$(Configuration)\Heapy_x64.exe $(SolutionDir)$(Configuration)\TestApplication_x64.exe
 echo ======
-$(SolutionDir)$(Configuration)\Heapy_x64.exe $(SolutionDir)$(Configuration)\TestApplication_x64.exe</Command>
+"$(SolutionDir)$(Configuration)\Heapy_x64.exe" "$(SolutionDir)$(Configuration)\TestApplication_x64.exe"</Command>
       <Outputs>NonExistentFileToPromptRebuild.txt</Outputs>
     </CustomBuildStep>
   </ItemDefinitionGroup>

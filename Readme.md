@@ -5,18 +5,18 @@ Heapy, a very simple heap profiler (or memory profiler), supports 32 and 64 bit 
 
 It lets you see what parts of an application are allocating the most memory.
 
-Heapy will hook and profile any `malloc` and `free` functions it can find, which will in turn cause `new` and `delete` to be profiled too (at least on MSVC `new` and `delete` call `malloc` and `free`).
+Heapy will hook and profile any `malloc`, `realloc`, `calloc` and `free` functions it can find, which will in turn cause `new` and `delete` to be profiled too (at least on MSVC `new` and `delete` call `malloc` and `free`).
 
 Download
 --------
 
-You can download the latest release of heapy [here.](https://github.com/lukedodd/Heapy/releases)
+You can download the latest Luke Dodd's offical release of Heapy at [here.](https://github.com/lukedodd/Heapy/releases)
 
 
 Build
 -----
 
-Simply clone this repository and build the `Heapy.sln` in Visual Studio 2017. More recent versions of visual studio should work, older versions will not.
+Simply clone this repository and build the `Heapy.sln` in Visual Studio 2010. More recent versions of visual studio should work, older versions will not.
 
 Be sure to select the correct configuration for your needs: a release Win32 or x64 configuration depending on whether you want to profile 32 or 64 bit applications.
 
